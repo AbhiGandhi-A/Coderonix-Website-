@@ -1,0 +1,186 @@
+{
+  "collections": {
+    "users": [
+      {
+        "_id": "ObjectId('65a1b1f1c1234567890abcd1')",
+        "group_id": "GRP12345678",
+        "role": "leader",
+        "username": "johnleader",
+        "password": "$2a$10$encrypted_password_hash_here",
+        "name": "John Smith",
+        "email": "john@example.com",
+        "member_id": null,
+        "tasks_assigned": [],
+        "joined_at": "2024-01-01T10:00:00.000Z"
+      },
+      {
+        "_id": "ObjectId('65a1b1f1c1234567890abcd2')",
+        "group_id": "GRP12345678",
+        "role": "member",
+        "username": "MEM12345ABC",
+        "password": "$2a$10$encrypted_password_hash_here",
+        "name": "Alice Johnson",
+        "email": "alice@example.com",
+        "member_id": "MEM12345ABC",
+        "tasks_assigned": ["ObjectId('65a1b1f1c1234567890abcd5')"],
+        "joined_at": "2024-01-01T10:05:00.000Z"
+      },
+      {
+        "_id": "ObjectId('65a1b1f1c1234567890abcd3')",
+        "group_id": "GRP12345678",
+        "role": "member",
+        "username": "MEM67890DEF",
+        "password": "$2a$10$encrypted_password_hash_here",
+        "name": "Bob Wilson",
+        "email": "bob@example.com",
+        "member_id": "MEM67890DEF",
+        "tasks_assigned": ["ObjectId('65a1b1f1c1234567890abcd5')"],
+        "joined_at": "2024-01-01T10:10:00.000Z"
+      }
+    ],
+    "groups": [
+      {
+        "_id": "ObjectId('65a1b1f1c1234567890abcd4')",
+        "group_name": "Web Development Team",
+        "leader_id": "ObjectId('65a1b1f1c1234567890abcd1')",
+        "members": [
+          "ObjectId('65a1b1f1c1234567890abcd2')",
+          "ObjectId('65a1b1f1c1234567890abcd3')"
+        ],
+        "created_at": "2024-01-01T10:00:00.000Z"
+      }
+    ],
+    "tasks": [
+      {
+        "_id": "ObjectId('65a1b1f1c1234567890abcd5')",
+        "group_id": "GRP12345678",
+        "title": "Design Homepage Layout",
+        "description": "Create a responsive homepage layout with modern design principles. Include header, hero section, features, and footer.",
+        "assigned_to": [
+          "ObjectId('65a1b1f1c1234567890abcd2')",
+          "ObjectId('65a1b1f1c1234567890abcd3')"
+        ],
+        "status": "in_progress",
+        "deadline": "2024-01-15T23:59:59.000Z",
+        "created_by": "ObjectId('65a1b1f1c1234567890abcd1')",
+        "created_at": "2024-01-01T11:00:00.000Z",
+        "updated_at": "2024-01-02T14:30:00.000Z"
+      },
+      {
+        "_id": "ObjectId('65a1b1f1c1234567890abcd6')",
+        "group_id": "GRP12345678",
+        "title": "Implement User Authentication",
+        "description": "Set up user registration and login functionality with proper validation and security measures.",
+        "assigned_to": [
+          "ObjectId('65a1b1f1c1234567890abcd2')"
+        ],
+        "status": "pending",
+        "deadline": "2024-01-20T23:59:59.000Z",
+        "created_by": "ObjectId('65a1b1f1c1234567890abcd1')",
+        "created_at": "2024-01-01T12:00:00.000Z",
+        "updated_at": "2024-01-01T12:00:00.000Z"
+      },
+      {
+        "_id": "ObjectId('65a1b1f1c1234567890abcd7')",
+        "group_id": "GRP12345678",
+        "title": "Database Schema Design",
+        "description": "Design and implement the database schema for the application with proper relationships and indexing.",
+        "assigned_to": [
+          "ObjectId('65a1b1f1c1234567890abcd3')"
+        ],
+        "status": "completed",
+        "deadline": "2024-01-10T23:59:59.000Z",
+        "created_by": "ObjectId('65a1b1f1c1234567890abcd1')",
+        "created_at": "2024-01-01T13:00:00.000Z",
+        "updated_at": "2024-01-05T16:45:00.000Z"
+      }
+    ],
+    "messages": [
+      {
+        "_id": "ObjectId('65a1b1f1c1234567890abcd8')",
+        "group_id": "GRP12345678",
+        "sender_id": "ObjectId('65a1b1f1c1234567890abcd1')",
+        "receiver_id": null,
+        "message": "Welcome to our development team! Let's start working on our new project.",
+        "timestamp": "2024-01-01T10:15:00.000Z"
+      },
+      {
+        "_id": "ObjectId('65a1b1f1c1234567890abcd9')",
+        "group_id": "GRP12345678",
+        "sender_id": "ObjectId('65a1b1f1c1234567890abcd2')",
+        "receiver_id": null,
+        "message": "Thanks John! I'm excited to work on this project. I'll start with the homepage design.",
+        "timestamp": "2024-01-01T10:20:00.000Z"
+      },
+      {
+        "_id": "ObjectId('65a1b1f1c1234567890abcda')",
+        "group_id": "GRP12345678",
+        "sender_id": "ObjectId('65a1b1f1c1234567890abcd3')",
+        "receiver_id": null,
+        "message": "Great! I'll focus on the database design. Should we use MongoDB or PostgreSQL?",
+        "timestamp": "2024-01-01T10:25:00.000Z"
+      },
+      {
+        "_id": "ObjectId('65a1b1f1c1234567890abcdb')",
+        "group_id": "GRP12345678",
+        "sender_id": "ObjectId('65a1b1f1c1234567890abcd1')",
+        "receiver_id": null,
+        "message": "Let's go with MongoDB for this project. It will give us more flexibility.",
+        "timestamp": "2024-01-01T10:30:00.000Z"
+      }
+    ],
+    "files": [
+      {
+        "_id": "ObjectId('65a1b1f1c1234567890abcdc')",
+        "group_id": "GRP12345678",
+        "file_name": "project-requirements.pdf",
+        "file_path": "uploads/file-1704110400000-123456789.pdf",
+        "shared_by": "ObjectId('65a1b1f1c1234567890abcd1')",
+        "shared_with": [],
+        "uploaded_at": "2024-01-01T14:00:00.000Z"
+      },
+      {
+        "_id": "ObjectId('65a1b1f1c1234567890abcdd')",
+        "group_id": "GRP12345678",
+        "file_name": "wireframes.sketch",
+        "file_path": "uploads/file-1704114000000-987654321.sketch",
+        "shared_by": "ObjectId('65a1b1f1c1234567890abcd2')",
+        "shared_with": [
+          "ObjectId('65a1b1f1c1234567890abcd1')",
+          "ObjectId('65a1b1f1c1234567890abcd3')"
+        ],
+        "uploaded_at": "2024-01-01T15:00:00.000Z"
+      }
+    ]
+  },
+  "instructions": {
+    "setup": "To set up this data in MongoDB Compass:",
+    "steps": [
+      "1. Open MongoDB Compass and connect to your local MongoDB instance",
+      "2. Create a new database called 'codronix'",
+      "3. For each collection (users, groups, tasks, messages, files):",
+      "   a. Create the collection in the database",
+      "   b. Use the 'Insert Document' option",
+      "   c. Copy the JSON data for each document",
+      "   d. Replace ObjectId strings with actual ObjectId values in Compass",
+      "4. Note: Password hashes should be generated using bcrypt with salt rounds 10",
+      "5. Update the .env file with your MongoDB connection string"
+    ],
+    "sample_credentials": {
+      "leader": {
+        "username": "johnleader",
+        "password": "password123"
+      },
+      "members": [
+        {
+          "member_id": "MEM12345ABC",
+          "password": "member123"
+        },
+        {
+          "member_id": "MEM67890DEF",
+          "password": "member456"
+        }
+      ]
+    }
+  }
+}
