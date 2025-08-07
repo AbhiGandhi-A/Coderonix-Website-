@@ -23,7 +23,7 @@ const Login = ({ setUser }) => {
     setError('');
     
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch('https://coderonix-website.onrender.com/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -54,7 +54,7 @@ const Login = ({ setUser }) => {
     setForgotMessage('');
 
     try {
-      const response = await fetch('/api/auth/forgot-password', {
+      const response = await fetch('https://coderonix-website.onrender.com/api/auth/forgot-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
