@@ -8,7 +8,7 @@ require('dotenv').config();
 
 const ACTIONS = require('./Actions');
 
-// Import all Mongoose models
+// Import Mongoose models
 const Message = require('./models/Message');
 const Task = require('./models/Task');
 const Analytics = require('./models/Analytics'); 
@@ -16,7 +16,7 @@ const File = require('./models/File');
 const User = require('./models/User'); 
 const Folder = require('./models/Folder'); 
 
-// Import all REST API routes
+// Import API routes
 const authRoutes = require('./routes/auth');
 const groupsRoutes = require('./routes/groups');
 const tasksRoutes = require('./routes/tasks');
@@ -28,31 +28,38 @@ const foldersRoutes = require('./routes/folders');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
-    methods: ['GET', 'POST', 'PUT', 'DELETE'], 
-    credentials: true
-  },
-  transports: ['websocket', 'polling']
-});
 
-// Middleware
-app.use(cors({
-  origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
-  credentials: true
-}));
+// ✅ Update CORS for both local and Vercel frontend
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'https://coderonix-website-nc7p.vercel.app'
+];
+
+const corsOptions = {
+  origin: allowedOrigins,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE']
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 
-// MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-}).then(() => console.log('✅ MongoDB connected'))
-  .catch(err => console.error('❌ MongoDB connection error:', err));
+// ✅ Socket.IO CORS configuration
+const io = new Server(server, {
+  cors: corsOptions,
+  transports: ['websocket', 'polling']
+});
 
-// REST API Routes
+// ✅ MongoDB Connection
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+}).then(() => console.log('✅ MongoDB connected'))
+  .catch(err => console.error('❌ MongoDB connection error:', err));
+
+// ✅ REST API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/groups', groupsRoutes);
 app.use('/api/tasks', tasksRoutes);
