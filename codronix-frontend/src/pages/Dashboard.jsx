@@ -18,30 +18,29 @@ const Dashboard = ({ user, logout }) => {
     const [notifications, setNotifications] = useState([]);
     const [connectionStatus, setConnectionStatus] = useState('connecting');
 
-    // 💡 Use the environment variable for the backend URL
-    // Vercel will inject this value for production, and you can set it locally
+    // Use the public URL of your deployed Render backend
     const SERVER_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
 
     useEffect(() => {
+        // Prevent socket connection if user data isn't ready
         if (!user || !user.group_id) {
-            console.error('User or group ID is not available. Cannot establish socket connection.');
+            console.warn('User or group ID is not available. Cannot establish socket connection.');
             return;
         }
 
         console.log('🚀 Dashboard mounting, creating socket connection...');
-        console.log('User:', user);
-        
-        // 💡 Use the secure protocol (HTTPS) and the public Render URL
-        // Socket.io will automatically handle the wss:// connection
+        console.log('Connecting to:', SERVER_URL);
+
+        // Connect to the public backend URL
         const newSocket = io(SERVER_URL, {
             transports: ['websocket', 'polling'],
             timeout: 20000,
             forceNew: true,
-            autoConnect: true,
             reconnection: true,
             reconnectionDelay: 1000,
             reconnectionAttempts: 5,
             maxReconnectionAttempts: 5,
+            // Pass user data as a query parameter for immediate join
             query: {
                 groupId: user.group_id,
                 userId: user._id,
@@ -54,8 +53,6 @@ const Dashboard = ({ user, logout }) => {
         newSocket.on('connect', () => {
             console.log('✅ Dashboard: Socket connected:', newSocket.id);
             setConnectionStatus('connected');
-            // The join-group emit is now handled by the 'query' option above.
-            // This ensures the join happens immediately upon connection.
         });
 
         newSocket.on('disconnect', (reason) => {
@@ -146,7 +143,7 @@ const Dashboard = ({ user, logout }) => {
                 newSocket.disconnect();
             }
         };
-    }, [user, activeTab]);
+    }, [user, activeTab, SERVER_URL]); // Add SERVER_URL to the dependency array
 
     const removeNotification = (id) => {
         setNotifications(prev => prev.filter(notif => notif.id !== id));
