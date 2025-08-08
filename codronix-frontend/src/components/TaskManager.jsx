@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Clock, User, Calendar, MessageSquare, FileText, CheckCircle, Play, Pause, RotateCcw, Plus, X, Upload, Tag, AlertCircle, Star, Filter, Search } from 'lucide-react';
 
 const TaskManager = ({ user, socket }) => {
@@ -57,82 +57,6 @@ const TaskManager = ({ user, socket }) => {
     { value: 'cancelled', label: 'Cancelled' }
   ];
 
-  // Memoized fetch functions to prevent unnecessary re-creations
-  const fetchTasks = useCallback(async () => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem('token');
-      const endpoint = user.role === 'leader' ? '/api/tasks' : '/api/tasks/my-tasks';
-      
-      const queryParams = new URLSearchParams();
-      if (filters.status) queryParams.append('status', filters.status);
-      if (filters.priority) queryParams.append('priority', filters.priority);
-      if (filters.category) queryParams.append('category', filters.category);
-      
-      const url = `${endpoint}${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
-      
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      const tasksArray = data.tasks || data;
-      
-      setTasks(tasksArray);
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching tasks:', error);
-      setLoading(false);
-    }
-  }, [user.role, filters]);
-
-  const fetchTaskStats = useCallback(async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/tasks/stats', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (response.ok) {
-        const stats = await response.json();
-        setTaskStats(stats);
-      }
-    } catch (error) {
-      console.error('Error fetching task stats:', error);
-    }
-  }, []);
-
-  const fetchMembers = useCallback(async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/groups/by-id/${user.group_id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to fetch members: ${response.status} - ${errorText}`);
-      }
-      
-      const data = await response.json();
-      setMembers([data.leader, ...data.members]);
-    } catch (error) {
-      console.error('Error fetching members:', error);
-    }
-  }, [user.group_id]);
-
-
-  // Effect hook to load data on component mount and filter changes
   useEffect(() => {
     fetchTasks();
     fetchTaskStats();
@@ -148,11 +72,13 @@ const TaskManager = ({ user, socket }) => {
 
     if (socket) {
       socket.on('task-updated', (data) => {
+        console.log('Task updated:', data);
         fetchTasks();
         fetchTaskStats();
       });
 
       socket.on('task-progress-updated', (data) => {
+        console.log('Task progress updated:', data);
         setTaskProgress(prev => ({
           ...prev,
           [data.task._id]: data.task.progress
@@ -164,37 +90,104 @@ const TaskManager = ({ user, socket }) => {
         socket.off('task-progress-updated');
       };
     }
-  }, [socket, user.group_id, user.role, fetchTasks, fetchMembers, fetchTaskStats]);
+  }, [socket, user.group_id, user.role]);
 
-  // Effect hook to save time tracking to localStorage whenever it changes
+  // Save time tracking to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem(`timeTracking_${user.group_id}`, JSON.stringify(timeTracking));
   }, [timeTracking, user.group_id]);
 
-  const handleResponse = async (response, successMessage) => {
-    if (response.ok) {
+  const fetchTasks = async () => {
+    try {
+      console.log('Fetching tasks for user role:', user.role);
+      
+      const token = localStorage.getItem('token');
+      const endpoint = user.role === 'leader' ? '/api/tasks' : '/api/tasks/my-tasks';
+      
+      // Build query parameters
+      const queryParams = new URLSearchParams();
+      if (filters.status) queryParams.append('status', filters.status);
+      if (filters.priority) queryParams.append('priority', filters.priority);
+      if (filters.category) queryParams.append('category', filters.category);
+      
+      const url = `${endpoint}${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+      console.log('Fetching from URL:', url);
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      console.log('Fetch tasks response status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const data = await response.json();
-      console.log(successMessage, data);
-      return data;
-    } else {
-      const isJson = response.headers.get('content-type')?.includes('application/json');
-      const errorData = isJson ? await response.json() : await response.text();
-      const errorMessage = isJson ? (errorData.message || 'Unknown error') : errorData;
-      throw new Error(errorMessage);
+      const tasksArray = data.tasks || data; // Handle both paginated and non-paginated responses
+      
+      console.log('Fetched tasks:', tasksArray.length);
+      setTasks(tasksArray);
+      
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+      setLoading(false);
+      // Don't show alert for fetch errors, just log them
+    }
+  };
+
+  const fetchTaskStats = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/tasks/stats', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const stats = await response.json();
+        setTaskStats(stats);
+      }
+    } catch (error) {
+      console.error('Error fetching task stats:', error);
+    }
+  };
+
+  const fetchMembers = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/groups/by-id/${user.group_id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      const data = await response.json();
+      setMembers([data.leader, ...data.members]);
+    } catch (error) {
+      console.error('Error fetching members:', error);
     }
   };
 
   const createTask = async (e) => {
     e.preventDefault();
     
+    console.log('Creating task with data:', newTask);
+    
     try {
       const token = localStorage.getItem('token');
       
+      // Validate required fields on client side
       if (!newTask.title.trim() || !newTask.description.trim() || newTask.assigned_to.length === 0 || !newTask.deadline) {
         alert('Please fill in all required fields: title, description, assigned members, and deadline.');
         return;
       }
       
+      // Create FormData for file upload
       const formData = new FormData();
       formData.append('title', newTask.title.trim());
       formData.append('description', newTask.description.trim());
@@ -208,53 +201,94 @@ const TaskManager = ({ user, socket }) => {
         formData.append('reminder_date', newTask.reminder_date);
       }
       
+      // Add attachments
       newTask.attachments.forEach(file => {
         formData.append('attachments', file);
       });
+
+      console.log('Sending request to create task...');
 
       const response = await fetch('/api/tasks', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
+          // Don't set Content-Type header when using FormData
         },
         body: formData
       });
 
-      const task = await handleResponse(response, 'Task created successfully:');
-      
-      setTasks([task, ...tasks]);
-      setNewTask({
-        title: '',
-        description: '',
-        assigned_to: [],
-        deadline: '',
-        priority: 'medium',
-        category: 'other',
-        tags: [],
-        estimated_hours: '',
-        reminder_date: '',
-        attachments: []
-      });
-      setShowCreateForm(false);
-      fetchTaskStats();
-      
-      if (socket) {
-        socket.emit('task-update', { 
-          group_id: user.group_id, 
-          task: { _id: task._id, title: task.title, status: task.status, priority: task.priority },
-          action: 'created',
-          user: { _id: user._id, name: user.name }
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+
+      if (response.ok) {
+        const task = await response.json();
+        console.log('Task created successfully:', task);
+        
+        setTasks([task, ...tasks]);
+        setNewTask({
+          title: '',
+          description: '',
+          assigned_to: [],
+          deadline: '',
+          priority: 'medium',
+          category: 'other',
+          tags: [],
+          estimated_hours: '',
+          reminder_date: '',
+          attachments: []
         });
+        setShowCreateForm(false);
+        fetchTaskStats();
+        
+        if (socket) {
+          socket.emit('task-update', { 
+            group_id: user.group_id, 
+            task: {
+              _id: task._id,
+              title: task.title,
+              status: task.status,
+              priority: task.priority
+            },
+          action: 'created',
+            user: {
+              _id: user._id,
+              name: user.name
+            }
+          });
+        }
+      } else {
+        // Try to parse error response
+        let errorMessage = 'Failed to create task';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+          console.error('Server error response:', errorData);
+        } catch (parseError) {
+          // If response is not JSON (like HTML error page), get text
+          try {
+            const errorText = await response.text();
+            console.error('Server error (non-JSON):', errorText);
+            if (errorText.includes('<!DOCTYPE')) {
+              errorMessage = 'Server error - please check server logs';
+            } else {
+              errorMessage = errorText;
+            }
+          } catch (textError) {
+            console.error('Could not parse error response:', textError);
+          }
+        }
+        alert(`Error creating task: ${errorMessage}`);
       }
     } catch (error) {
-      console.error('Error creating task:', error);
-      alert(`Error creating task: ${error.message}`);
+      console.error('Network error creating task:', error);
+      alert(`Network error creating task: ${error.message}`);
     }
   };
 
   const startTask = async (taskId) => {
     try {
       const token = localStorage.getItem('token');
+      
       const response = await fetch(`/api/tasks/${taskId}/status`, {
         method: 'PUT',
         headers: {
@@ -268,34 +302,45 @@ const TaskManager = ({ user, socket }) => {
         })
       });
 
-      const updatedTask = await handleResponse(response, 'Task started successfully:');
+      if (response.ok) {
+        const updatedTask = await response.json();
+        setTasks(tasks.map(task =>
+          task._id === taskId ? updatedTask : task
+        ));
 
-      setTasks(tasks.map(task => task._id === taskId ? updatedTask : task));
+        // Start time tracking
+        setTimeTracking(prev => ({
+          ...prev,
+          [taskId]: {
+            startTime: Date.now(),
+            totalTime: prev[taskId]?.totalTime || 0,
+            isRunning: true
+          }
+        }));
 
-      setTimeTracking(prev => ({
-        ...prev,
-        [taskId]: {
-          startTime: Date.now(),
-          totalTime: prev[taskId]?.totalTime || 0,
-          isRunning: true
+        // Show task details modal
+        setSelectedTask(updatedTask);
+        setShowTaskModal(true);
+        fetchTaskStats();
+
+        if (socket) {
+          socket.emit('task-update', { 
+            group_id: user.group_id, 
+            task: {
+              _id: updatedTask._id,
+              title: updatedTask.title,
+              status: updatedTask.status
+            },
+            action: 'started',
+            user: {
+              _id: user._id,
+              name: user.name
+            }
+          });
         }
-      }));
-
-      setSelectedTask(updatedTask);
-      setShowTaskModal(true);
-      fetchTaskStats();
-
-      if (socket) {
-        socket.emit('task-update', { 
-          group_id: user.group_id, 
-          task: { _id: updatedTask._id, title: updatedTask.title, status: updatedTask.status },
-          action: 'started',
-          user: { _id: user._id, name: user.name }
-        });
       }
     } catch (error) {
       console.error('Error starting task:', error);
-      alert(`Error starting task: ${error.message}`);
     }
   };
 
@@ -349,22 +394,32 @@ const TaskManager = ({ user, socket }) => {
         body: JSON.stringify(updateData)
       });
 
-      const updatedTask = await handleResponse(response, 'Task status updated successfully:');
+      if (response.ok) {
+        const updatedTask = await response.json();
+        setTasks(tasks.map(task =>
+          task._id === taskId ? updatedTask : task
+        ));
+        fetchTaskStats();
 
-      setTasks(tasks.map(task => task._id === taskId ? updatedTask : task));
-      fetchTaskStats();
-
-      if (socket) {
-        socket.emit('task-update', { 
-          group_id: user.group_id, 
-          task: { _id: updatedTask._id, title: updatedTask.title, status: updatedTask.status, completedBy: updatedTask.completedBy },
-          action: status,
-          user: { _id: user._id, name: user.name }
-        });
+        if (socket) {
+          socket.emit('task-update', { 
+            group_id: user.group_id, 
+            task: {
+              _id: updatedTask._id,
+              title: updatedTask.title,
+              status: updatedTask.status,
+              completedBy: updatedTask.completedBy
+            },
+            action: status,
+            user: {
+              _id: user._id,
+              name: user.name
+            }
+          });
+        }
       }
     } catch (error) {
-      console.error('Error updating task status:', error);
-      alert(`Error updating task status: ${error.message}`);
+      console.error('Error updating task:', error);
     }
   };
 
@@ -380,25 +435,34 @@ const TaskManager = ({ user, socket }) => {
         body: JSON.stringify({ progress })
       });
 
-      const updatedTask = await handleResponse(response, 'Task progress updated successfully:');
+      if (response.ok) {
+        const updatedTask = await response.json();
+        setTasks(tasks.map(task =>
+          task._id === taskId ? updatedTask : task
+        ));
 
-      setTasks(tasks.map(task => task._id === taskId ? updatedTask : task));
+        setTaskProgress(prev => ({
+          ...prev,
+          [taskId]: progress
+        }));
 
-      setTaskProgress(prev => ({
-        ...prev,
-        [taskId]: progress
-      }));
-
-      if (socket) {
-        socket.emit('task-progress-update', {
-          group_id: user.group_id,
-          task: { _id: updatedTask._id, title: updatedTask.title, progress: updatedTask.progress },
-          user: { _id: user._id, name: user.name }
-        });
+        if (socket) {
+          socket.emit('task-progress-update', {
+            group_id: user.group_id,
+            task: {
+              _id: updatedTask._id,
+              title: updatedTask.title,
+              progress: updatedTask.progress
+            },
+            user: {
+              _id: user._id,
+              name: user.name
+            }
+          });
+        }
       }
     } catch (error) {
       console.error('Error updating task progress:', error);
-      alert(`Error updating task progress: ${error.message}`);
     }
   };
 
@@ -414,24 +478,24 @@ const TaskManager = ({ user, socket }) => {
         body: JSON.stringify({ comment })
       });
 
-      const newCommentData = await handleResponse(response, 'Comment added successfully:');
-      
-      setTaskComments(prev => ({
-        ...prev,
-        [taskId]: [...(prev[taskId] || []), newCommentData]
-      }));
+      if (response.ok) {
+        const newCommentData = await response.json();
+        setTaskComments(prev => ({
+          ...prev,
+          [taskId]: [...(prev[taskId] || []), newCommentData]
+        }));
 
-      if (socket) {
-        socket.emit('task-comment', {
-          group_id: user.group_id,
-          taskId,
-          comment: newCommentData,
-          user: user.name
-        });
+        if (socket) {
+          socket.emit('task-comment', {
+            group_id: user.group_id,
+            taskId,
+            comment: newCommentData,
+            user: user.name
+          });
+        }
       }
     } catch (error) {
       console.error('Error adding comment:', error);
-      alert(`Error adding comment: ${error.message}`);
     }
   };
 
@@ -582,7 +646,10 @@ const TaskManager = ({ user, socket }) => {
         
         <select
           value={filters.status}
-          onChange={(e) => setFilters({...filters, status: e.target.value})}
+          onChange={(e) => {
+            setFilters({...filters, status: e.target.value});
+            fetchTasks();
+          }}
           className="filter-select"
         >
           {statusOptions.map(option => (
@@ -594,7 +661,10 @@ const TaskManager = ({ user, socket }) => {
 
         <select
           value={filters.priority}
-          onChange={(e) => setFilters({...filters, priority: e.target.value})}
+          onChange={(e) => {
+            setFilters({...filters, priority: e.target.value});
+            fetchTasks();
+          }}
           className="filter-select"
         >
           <option value="">All Priorities</option>
@@ -607,7 +677,10 @@ const TaskManager = ({ user, socket }) => {
 
         <select
           value={filters.category}
-          onChange={(e) => setFilters({...filters, category: e.target.value})}
+          onChange={(e) => {
+            setFilters({...filters, category: e.target.value});
+            fetchTasks();
+          }}
           className="filter-select"
         >
           <option value="">All Categories</option>
@@ -871,14 +944,299 @@ const TaskManager = ({ user, socket }) => {
                 {/* Time Tracking */}
                 <div className="time-tracking-section">
                   <h4>Time Tracking</h4>
-                  {/* ... (rest of the modal content) */}
+                  <div className="time-display">
+                    <Clock size={20} />
+                    <span className="time-spent">
+                      {formatTime(getCurrentTime(selectedTask._id))}
+                    </span>
+                  </div>
+                  
+                  {selectedTask.status === 'in_progress' && (
+                    <div className="time-controls">
+                      {timeTracking[selectedTask._id]?.isRunning ? (
+                        <button
+                          onClick={() => pauseTask(selectedTask._id)}
+                          className="btn-secondary"
+                        >
+                          <Pause size={16} /> Pause
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => resumeTask(selectedTask._id)}
+                          className="btn-primary"
+                        >
+                          <Play size={16} /> Resume
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
-                {/* ... (rest of the modal content) */}
+
+                {/* Progress Tracking */}
+                {selectedTask.status === 'in_progress' && (
+                  <div className="progress-section">
+                    <h4>Progress</h4>
+                    <div className="progress-controls">
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={taskProgress[selectedTask._id] || selectedTask.progress || 0}
+                        onChange={(e) => {
+                          const progress = parseInt(e.target.value);
+                          setTaskProgress(prev => ({
+                            ...prev,
+                            [selectedTask._id]: progress
+                          }));
+                        }}
+                        onMouseUp={(e) => {
+                          const progress = parseInt(e.target.value);
+                          updateTaskProgress(selectedTask._id, progress);
+                        }}
+                        className="progress-slider"
+                      />
+                      <span className="progress-value">
+                        {taskProgress[selectedTask._id] || selectedTask.progress || 0}%
+                      </span>
+                    </div>
+                    <div className="progress-bar">
+                      <div 
+                        className="progress-fill"
+                        style={{ 
+                          width: `${taskProgress[selectedTask._id] || selectedTask.progress || 0}%` 
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Comments Section */}
+                <div className="comments-section">
+                  <h4>Comments & Updates</h4>
+                  <div className="comments-list">
+                    {(selectedTask.comments || []).map((comment, index) => (
+                      <div key={index} className={`comment ${comment.is_automatic ? 'automatic' : ''}`}>
+                        <div className="comment-header">
+                          <span className="comment-author">{comment.author?.name || 'System'}</span>
+                          <span className="comment-time">
+                            {new Date(comment.created_at).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="comment-content">{comment.comment}</div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div className="add-comment">
+                    <textarea
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      placeholder="Add a comment..."
+                      rows="3"
+                    />
+                    <button
+                      onClick={() => {
+                        if (newComment.trim()) {
+                          addTaskComment(selectedTask._id, newComment);
+                          setNewComment('');
+                        }
+                      }}
+                      className="btn-primary"
+                      disabled={!newComment.trim()}
+                    >
+                      Add Comment
+                    </button>
+                  </div>
+                </div>
               </div>
+            </div>
+
+            <div className="modal-actions">
+              {selectedTask.status !== 'completed' && (
+                <>
+                  <button
+                    onClick={() => updateTaskStatus(selectedTask._id, 'completed')}
+                    className="btn-success"
+                  >
+                    <CheckCircle size={16} /> Mark Complete
+                  </button>
+                  {selectedTask.status === 'in_progress' && (
+                    <button
+                      onClick={() => updateTaskStatus(selectedTask._id, 'pending')}
+                      className="btn-secondary"
+                    >
+                      <RotateCcw size={16} /> Reset to Pending
+                    </button>
+                  )}
+                </>
+              )}
+              <button
+                onClick={() => setShowTaskModal(false)}
+                className="btn-secondary"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Tasks Grid */}
+      <div className="tasks-grid">
+        {filteredTasks.length === 0 ? (
+          <div className="empty-state">
+            <p>No tasks found. {user.role === 'leader' ? 'Create your first task!' : 'Wait for tasks to be assigned.'}</p>
+          </div>
+        ) : (
+          filteredTasks.map(task => (
+            <div key={task._id} className={`task-card ${task.status}`}>
+              <div className="task-header">
+                <h3>{task.title}</h3>
+                <div className="task-badges">
+                  <span 
+                    className="priority-badge" 
+                    style={{ backgroundColor: getPriorityColor(task.priority) }}
+                  >
+                    {task.priority}
+                  </span>
+                  <span className={`status-badge ${task.status}`}>
+                    {task.status.replace('_', ' ')}
+                  </span>
+                  {task.isOverdue && (
+                    <span className="overdue-badge">
+                      <AlertCircle size={12} />
+                      Overdue
+                    </span>
+                  )}
+                </div>
+              </div>
+              
+              <p className="task-description">{task.description}</p>
+              
+              {/* Category and Tags */}
+              <div className="task-meta-tags">
+                <span className="category-tag">{task.category}</span>
+                {task.tags && task.tags.map(tag => (
+                  <span key={tag} className="tag small">
+                    <Tag size={10} />
+                    {tag}
+                  </span>
+                ))}
+              </div>
+              
+              {/* Progress Bar */}
+              {task.status === 'in_progress' && (
+                <div className="task-progress">
+                  <div className="progress-bar">
+                    <div 
+                      className="progress-fill"
+                      style={{ width: `${task.progress || 0}%` }}
+                    ></div>
+                  </div>
+                  <span className="progress-text">{task.progress || 0}% complete</span>
+                </div>
+              )}
+
+              {/* Time Tracking Display */}
+              {timeTracking[task._id] && (
+                <div className="task-time">
+                  <Clock size={16} />
+                  <span>{formatTime(getCurrentTime(task._id))}</span>
+                  {timeTracking[task._id].isRunning && (
+                    <span className="time-running">● Running</span>
+                  )}
+                </div>
+              )}
+              
+              <div className="task-meta">
+                <div className="assigned-to">
+                  <strong>Assigned to:</strong>
+                  <div className="assignee-list">
+                    {task.assigned_to.map(assignee => (
+                      <span key={assignee._id} className="assignee-tag">
+                        {assignee.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="task-deadline">
+                  <strong>Deadline:</strong> {new Date(task.deadline).toLocaleDateString()}
+                </div>
+                
+                <div className="task-creator">
+                  <strong>Created by:</strong> {task.created_by.name}
+                </div>
+
+                {task.estimated_hours > 0 && (
+                  <div className="task-hours">
+                    <strong>Estimated:</strong> {task.estimated_hours}h
+                  </div>
+                )}
+              </div>
+
+              {user.role === 'member' && task.assigned_to.some(a => a._id === user._id) && (
+                <div className="task-actions">
+                  {task.status === 'pending' && (
+                    <button
+                      onClick={() => startTask(task._id)}
+                      className="btn-primary"
+                    >
+                      <Play size={16} /> Start Task
+                    </button>
+                  )}
+                  
+                  {task.status === 'in_progress' && (
+                    <>
+                      <button
+                        onClick={() => {
+                          setSelectedTask(task);
+                          setShowTaskModal(true);
+                        }}
+                        className="btn-secondary"
+                      >
+                        <FileText size={16} /> View Details
+                      </button>
+                      <button
+                        onClick={() => updateTaskStatus(task._id, 'completed')}
+                        className="btn-success"
+                      >
+                        <CheckCircle size={16} /> Complete
+                      </button>
+                    </>
+                  )}
+                  
+                  {task.status === 'completed' && (
+                    <button
+                      onClick={() => {
+                        setSelectedTask(task);
+                        setShowTaskModal(true);
+                      }}
+                      className="btn-secondary"
+                    >
+                      <FileText size={16} /> View Details
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {user.role === 'leader' && (
+                <div className="task-actions">
+                  <button
+                    onClick={() => {
+                      setSelectedTask(task);
+                      setShowTaskModal(true);
+                    }}
+                    className="btn-secondary"
+                  >
+                    <FileText size={16} /> View Details
+                  </button>
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 };
