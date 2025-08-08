@@ -31,36 +31,30 @@ const docsRoutes = require('./routes/docs');
 const app = express();
 const server = http.createServer(app);
 
-// It's best to leave SERVER_IP as '0.0.0.0' for Render deployments
-// or remove it if not explicitly used for binding.
-// The clientOrigins should directly use the full URLs.
-const SERVER_IP = '0.0.0.0'; 
+const SERVER_IP = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';// Remove http:// prefix
 const PORT = process.env.PORT || 5000;
 
-// Define client origins using environment variables for production and localhost for development
 const clientOrigins = [
-    "http://localhost:3000", 
-    "http://127.0.0.1:3000",
-    // Dynamically add the Vercel frontend URL if available
-    process.env.VERCEL_FRONTEND_URL,
-    // If you still need the local IP for some specific dev setup, keep it like this:
-    // `http://${SERVER_IP}:3000` // This is usually not needed when using localhost
-].filter(Boolean); // Filter out any undefined/null values
+  "http://localhost:3000",
+  process.env.VERCEL_FRONTEND_URL, // Allow the primary Vercel domain
+  process.env.VERCEL_PREVIEW_URL, // Allow dynamic preview URLs
+].filter(Boolean); // This removes any undefined values if env variables are not set.
 
 const io = new Server(server, {
-    cors: {
-        origin: clientOrigins,
-        methods: ['GET', 'POST', 'PUT', 'DELETE'],
-        credentials: true
-    },
-    transports: ['websocket', 'polling']
+  cors: {
+    origin: clientOrigins,
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true
+  },
+  transports: ['websocket', 'polling']
 });
 
-// Middleware
 app.use(cors({
-    origin: clientOrigins,
-    credentials: true
+  origin: clientOrigins,
+  credentials: true
 }));
+
+
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 
