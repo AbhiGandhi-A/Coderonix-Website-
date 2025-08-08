@@ -8,6 +8,9 @@ const Profile = ({ user, logout, setUser }) => {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   
+  // Define your backend URL using the environment variable
+  const SERVER_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
+
   const [formData, setFormData] = useState({
     name: user.name,
     email: user.email
@@ -27,7 +30,8 @@ const Profile = ({ user, logout, setUser }) => {
     
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/auth/update-profile', {
+      // Use the absolute URL here
+      const response = await fetch(`${SERVER_URL}/api/auth/update-profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -73,7 +77,8 @@ const Profile = ({ user, logout, setUser }) => {
     
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/auth/update-password', {
+      // Use the absolute URL here
+      const response = await fetch(`${SERVER_URL}/api/auth/update-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

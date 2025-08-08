@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Loader2, AlertCircle } from 'lucide-react';
 import '../styles/global.css';
@@ -12,25 +12,32 @@ const Analytics = ({ user, socket }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    const fetchAnalytics = async () => {
-      setLoading(true);
-      setError('');
-      try {
-        const response = await fetch(`/api/analytics/${user.group_id}`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch analytics data');
-        }
-        const data = await response.json();
-        setAnalyticsData(data);
-      } catch (err) {
-        console.error('Error fetching analytics:', err);
-        setError('Failed to load analytics data.');
-      } finally {
-        setLoading(false);
+  // Define your backend URL using the environment variable
+  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
+
+  const fetchAnalytics = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      // Use the absolute URL with the BACKEND_URL constant
+      const response = await fetch(`${BACKEND_URL}/api/analytics/${user.group_id}`);
+      
+      if (!response.ok) {
+        // Try to read error message from response
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch analytics data: ${errorText}`);
       }
-    };
-    
+      const data = await response.json();
+      setAnalyticsData(data);
+    } catch (err) {
+      console.error('Error fetching analytics:', err);
+      setError('Failed to load analytics data. Please check the network connection and backend server.');
+    } finally {
+      setLoading(false);
+    }
+  }, [user.group_id, BACKEND_URL]);
+
+  useEffect(() => {
     if (user && user.group_id) {
       fetchAnalytics();
     }
@@ -47,7 +54,7 @@ const Analytics = ({ user, socket }) => {
         socket.off('analytics-update', handleAnalyticsUpdate);
       };
     }
-  }, [user, socket]);
+  }, [user, socket, fetchAnalytics]);
   
   useEffect(() => {
     if (analyticsData) {

@@ -1,4 +1,3 @@
-// src/components/EditorPage.js
 import React, { useState, useRef, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import ACTIONS from '../shared/Actions';
@@ -21,13 +20,13 @@ const EditorPage = () => {
     const [clients, setClients] = useState([]);
     const [isConnected, setIsConnected] = useState(false);
 
-    // 💡 Define the server URL using your network IP
-    const SERVER_URL = 'http://.1.15:5000';
+    // ✅ Replaced hardcoded URL with the environment variable
+    const SERVER_URL = process.env.REACT_APP_BACKEND_URL;
 
     useEffect(() => {
         const init = async () => {
             try {
-                // 💡 Pass the SERVER_URL to the initSocket function
+                // Pass the SERVER_URL to the initSocket function
                 socketRef.current = await initSocket(SERVER_URL);
                 
                 socketRef.current.on('connect', () => {

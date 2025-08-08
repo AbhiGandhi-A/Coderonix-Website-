@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import '../styles/global.css';
 
 const Calendar = ({ user, socket }) => {
@@ -14,6 +14,25 @@ const Calendar = ({ user, socket }) => {
         type: 'meeting',
         attendees: []
     });
+
+    // Define your backend URL using the environment variable
+    const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
+
+    const fetchEvents = useCallback(async () => {
+        try {
+            const token = localStorage.getItem('token');
+            // Use the absolute URL here
+            const response = await fetch(`${BACKEND_URL}/api/calendar/events`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setEvents(data);
+            }
+        } catch (error) {
+            console.error('Error fetching events:', error);
+        }
+    }, [BACKEND_URL]);
 
     useEffect(() => {
         fetchEvents();
@@ -41,28 +60,14 @@ const Calendar = ({ user, socket }) => {
                 socket.off('event-updated', handleEventUpdated);
             };
         }
-    }, [socket, user.id, events]); // Add 'events' to the dependency array
-
-    const fetchEvents = async () => {
-        try {
-            const token = localStorage.getItem('token');
-            const response = await fetch('/api/calendar/events', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (response.ok) {
-                const data = await response.json();
-                setEvents(data);
-            }
-        } catch (error) {
-            console.error('Error fetching events:', error);
-        }
-    };
+    }, [socket, user.id, events, fetchEvents]);
 
     const createEvent = async (e) => {
         e.preventDefault();
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch('/api/calendar/events', {
+            // Use the absolute URL here
+            const response = await fetch(`${BACKEND_URL}/api/calendar/events`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -99,7 +104,8 @@ const Calendar = ({ user, socket }) => {
     const joinEvent = async (eventId) => {
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`/api/calendar/events/${eventId}/join`, {
+            // Use the absolute URL here
+            const response = await fetch(`${BACKEND_URL}/api/calendar/events/${eventId}/join`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` }
             });

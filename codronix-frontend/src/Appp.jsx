@@ -18,11 +18,15 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Define your backend URL using the environment variable
+  const SERVER_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
+
   // Token check
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
-      fetch('/api/auth/me', {
+      // Use the absolute URL here
+      fetch(`${SERVER_URL}/api/auth/me`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -36,14 +40,15 @@ function App() {
           }
           setLoading(false);
         })
-        .catch(() => {
+        .catch((error) => {
+          console.error("Error fetching user data:", error);
           localStorage.removeItem('token');
           setLoading(false);
         });
     } else {
       setLoading(false);
     }
-  }, []);
+  }, [SERVER_URL]); // Add SERVER_URL to dependency array
 
   const logout = () => {
     localStorage.removeItem('token');
@@ -73,7 +78,7 @@ function App() {
 
           {/* Protected routes */}
           <Route path="/dashboard" element={user ? <Dashboard user={user} logout={logout} /> : <Navigate to="/login" />} />
-          <Route path="/profile" element={user ? <Profile user={user} logout={logout} /> : <Navigate to="/login" />} />
+          <Route path="/profile" element={user ? <Profile user={user} logout={logout} setUser={setUser} /> : <Navigate to="/login" />} />
 
           {/* Code Editor */}
           <Route path="/editor-home" element={<Home />} />

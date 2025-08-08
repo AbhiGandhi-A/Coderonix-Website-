@@ -1,35 +1,56 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import '../styles/global.css'; // Assuming you have a global stylesheet for consistent styling
 
 const MemberManager = ({ user }) => {
   const [members, setMembers] = useState([]);
   const [leader, setLeader] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    fetchMembers();
-  }, []);
+  // Define your backend URL using the environment variable
+  const SERVER_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
 
-  const fetchMembers = async () => {
+  const fetchMembers = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/groups/by-id/${user.group_id}`, {
+      // Use the absolute URL here
+      const response = await fetch(`${SERVER_URL}/api/groups/by-id/${user.group_id}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
       
+      if (!response.ok) {
+        throw new Error('Failed to fetch group members.');
+      }
+
       const data = await response.json();
       setLeader(data.leader);
       setMembers(data.members);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching members:', error);
+      setError('Failed to load group members. Please try again.');
       setLoading(false);
     }
-  };
+  }, [user.group_id, SERVER_URL]);
+
+  useEffect(() => {
+    if (user && user.group_id) {
+      fetchMembers();
+    } else {
+      setLoading(false);
+    }
+  }, [user, fetchMembers]);
 
   if (loading) {
     return <div className="loading">Loading members...</div>;
+  }
+  
+  if (error) {
+    return <div className="error-message">{error}</div>;
   }
 
   return (

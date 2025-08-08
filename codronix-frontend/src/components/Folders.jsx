@@ -5,8 +5,6 @@ import 'react-draft-wysiwyg/dist/react-draft-wysiwyg.css';
 import '../styles/Folders.css';
 import DocumentEditor from './DocumentEditor';
 
-const SERVER_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';;
-
 const Folders = ({ user, socket }) => {
   const [folders, setFolders] = useState([]);
   const [currentFolder, setCurrentFolder] = useState(null);
@@ -27,6 +25,59 @@ const Folders = ({ user, socket }) => {
   const [sharingStatus, setSharingStatus] = useState({});
 
   const editorRef = useRef(null);
+  const SERVER_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
+
+  const fetchFolders = useCallback(async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${SERVER_URL}/api/folders/group/${user.group_id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch folders');
+      const data = await response.json();
+      setFolders(data);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to load folders. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [user.group_id, SERVER_URL]);
+
+  const fetchGroupMembers = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${SERVER_URL}/api/groups/${user.group_id}/members`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        console.error('Failed to fetch group members');
+        return;
+      }
+      const data = await response.json();
+      setGroupMembers(data.filter(member => member._id !== user._id));
+    } catch (err) {
+      console.error('Error fetching group members:', err);
+    }
+  }, [user._id, user.group_id, SERVER_URL]);
+
+  const fetchSharedDocs = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${SERVER_URL}/api/docs/shared`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        console.error('Failed to fetch shared documents');
+        return;
+      }
+      const data = await response.json();
+      setSharedDocs(data);
+    } catch (err) {
+      console.error('Error fetching shared docs:', err);
+    }
+  }, [SERVER_URL]);
 
   useEffect(() => {
     if (user && user.group_id) {
@@ -34,7 +85,7 @@ const Folders = ({ user, socket }) => {
       fetchGroupMembers();
       fetchSharedDocs();
     }
-  }, [user.group_id]);
+  }, [user, fetchFolders, fetchGroupMembers, fetchSharedDocs]);
 
   // Socket listeners for real-time updates
   useEffect(() => {
@@ -58,59 +109,7 @@ const Folders = ({ user, socket }) => {
         socket.off('document-updated');
       };
     }
-  }, [socket, user.group_id]);
-
-  const fetchFolders = async () => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${SERVER_URL}/api/folders/group/${user.group_id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error('Failed to fetch folders');
-      const data = await response.json();
-      setFolders(data);
-    } catch (err) {
-      console.error(err);
-      setError('Failed to load folders. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchGroupMembers = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${SERVER_URL}/api/groups/${user.group_id}/members`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!response.ok) {
-        console.error('Failed to fetch group members');
-        return;
-      }
-      const data = await response.json();
-      setGroupMembers(data.filter(member => member._id !== user._id));
-    } catch (err) {
-      console.error('Error fetching group members:', err);
-    }
-  };
-
-  const fetchSharedDocs = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${SERVER_URL}/api/docs/shared`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!response.ok) {
-        console.error('Failed to fetch shared documents');
-        return;
-      }
-      const data = await response.json();
-      setSharedDocs(data);
-    } catch (err) {
-      console.error('Error fetching shared docs:', err);
-    }
-  };
+  }, [socket, user.group_id, fetchFolders, fetchSharedDocs]);
 
   const createFolder = async (e) => {
     e.preventDefault();
@@ -196,10 +195,10 @@ const Folders = ({ user, socket }) => {
     try {
       const token = localStorage.getItem('token');
       const method = currentDoc ? 'PUT' : 'POST';
-      const url = currentDoc 
+      const url = currentDoc
         ? `${SERVER_URL}/api/docs/${currentDoc._id}`
         : `${SERVER_URL}/api/docs`;
-      
+
       const body = {
         folderId: currentFolder._id,
         title: docTitle,
@@ -256,14 +255,14 @@ const Folders = ({ user, socket }) => {
   const openDoc = async (doc, isShared = false) => {
     try {
       const token = localStorage.getItem('token');
-      const url = isShared 
+      const url = isShared
         ? `${SERVER_URL}/api/docs/shared/${doc._id}`
         : `${SERVER_URL}/api/docs/${doc._id}`;
-      
+
       const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         let errorMessage;
@@ -275,14 +274,14 @@ const Folders = ({ user, socket }) => {
         }
         throw new Error(errorMessage);
       }
-      
+
       const docWithContent = await response.json();
 
       // Set basic info first
       setDocTitle(docWithContent.title);
       setCurrentDoc({ ...docWithContent, isShared });
       setError('');
-      
+
       // Prepare editor state
       let contentState;
       try {
@@ -294,10 +293,10 @@ const Folders = ({ user, socket }) => {
       } catch {
         contentState = EditorState.createEmpty().getCurrentContent();
       }
-      
+
       setEditorState(EditorState.createWithContent(contentState));
       setShowDocEditor(true);
-      
+
     } catch (err) {
       console.error(err);
       setError(err.message || 'Failed to open document.');
@@ -373,7 +372,7 @@ const Folders = ({ user, socket }) => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           sharedWith: selectedMembers,
           group_id: user.group_id
         })
@@ -382,7 +381,7 @@ const Folders = ({ user, socket }) => {
       if (!response.ok) throw new Error('Failed to share document');
 
       setSharingStatus({ success: true });
-      
+
       setTimeout(() => {
         setShowShareModal(false);
         setShareDocId(null);
@@ -409,8 +408,8 @@ const Folders = ({ user, socket }) => {
   };
 
   const handleMemberToggle = (memberId) => {
-    setSelectedMembers(prev => 
-      prev.includes(memberId) 
+    setSelectedMembers(prev =>
+      prev.includes(memberId)
         ? prev.filter(id => id !== memberId)
         : [...prev, memberId]
     );
@@ -438,14 +437,14 @@ const Folders = ({ user, socket }) => {
     <div className="folders-page">
       <aside className="folders-sidebar">
         <div className="sidebar-tabs">
-          <button 
+          <button
             className={`tab-button ${activeTab === 'my-folders' ? 'active' : ''}`}
             onClick={() => setActiveTab('my-folders')}
           >
             <Folder size={16} />
             My Folders
           </button>
-          <button 
+          <button
             className={`tab-button ${activeTab === 'shared' ? 'active' : ''}`}
             onClick={() => setActiveTab('shared')}
           >
@@ -484,8 +483,8 @@ const Folders = ({ user, socket }) => {
                     <Folder size={20} />
                     <span>{folder.name}</span>
                     {(user._id === folder.created_by || user.role === 'leader') && (
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); deleteFolder(folder._id); }} 
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteFolder(folder._id); }}
                         className="delete-btn"
                       >
                         <Trash2 size={16} />
@@ -507,8 +506,8 @@ const Folders = ({ user, socket }) => {
                   <li key={doc._id} className="shared-doc-item">
                     <FileText size={20} />
                     <div className="doc-info">
-                      <span 
-                        className="doc-title" 
+                      <span
+                        className="doc-title"
                         onClick={() => openDoc(doc, true)}
                       >
                         {doc.title}
@@ -527,7 +526,7 @@ const Folders = ({ user, socket }) => {
 
       <main className="folder-content">
         {error && <p className="error-message">{error}</p>}
-        
+
         {activeTab === 'my-folders' && currentFolder ? (
           <>
             <div className="folder-header">
@@ -566,15 +565,15 @@ const Folders = ({ user, socket }) => {
                         </button>
                         {user._id === doc.owner_id && (
                           <>
-                            <button 
-                              onClick={() => openShareModal(doc._id, doc.title)} 
+                            <button
+                              onClick={() => openShareModal(doc._id, doc.title)}
                               className="icon-btn share-btn"
                               title="Share"
                             >
                               <Share2 size={16} />
                             </button>
-                            <button 
-                              onClick={() => deleteDoc(doc._id)} 
+                            <button
+                              onClick={() => deleteDoc(doc._id)}
                               className="icon-btn delete-btn"
                               title="Delete"
                             >
@@ -638,12 +637,12 @@ const Folders = ({ user, socket }) => {
                   <X size={20} />
                 </button>
               </div>
-              
+
               <div className="modal-body">
                 <p className="share-description">
                   Select group members to share this document with:
                 </p>
-                
+
                 <div className="members-list">
                   {groupMembers.length === 0 ? (
                     <p className="no-members">No other group members found.</p>
@@ -664,14 +663,14 @@ const Folders = ({ user, socket }) => {
                     ))
                   )}
                 </div>
-                
+
                 {selectedMembers.length > 0 && (
                   <div className="selected-count">
                     {selectedMembers.length} member{selectedMembers.length > 1 ? 's' : ''} selected
                   </div>
                 )}
               </div>
-              
+
               <div className="modal-actions">
                 {sharingStatus.success ? (
                   <div className="success-message">
@@ -680,15 +679,15 @@ const Folders = ({ user, socket }) => {
                   </div>
                 ) : (
                   <>
-                    <button 
-                      onClick={shareDocument} 
+                    <button
+                      onClick={shareDocument}
                       className="btn-primary"
                       disabled={selectedMembers.length === 0 || sharingStatus.loading}
                     >
                       {sharingStatus.loading ? 'Sharing...' : 'Share Document'}
                     </button>
-                    <button 
-                      onClick={closeShareModal} 
+                    <button
+                      onClick={closeShareModal}
                       className="btn-secondary"
                       disabled={sharingStatus.loading}
                     >

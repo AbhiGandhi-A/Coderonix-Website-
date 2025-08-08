@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 const ProjectManager = ({ user, socket }) => {
   const [projects, setProjects] = useState([]);
@@ -20,6 +20,29 @@ const ProjectManager = ({ user, socket }) => {
     priority: 'medium',
     status: 'todo'
   });
+
+  const SERVER_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
+
+  const fetchProjects = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${SERVER_URL}/api/projects`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setProjects(data);
+        if (data.length > 0 && !selectedProject) {
+          setSelectedProject(data[0]);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+    }
+  }, [selectedProject, SERVER_URL]);
 
   useEffect(() => {
     fetchProjects();
@@ -50,34 +73,13 @@ const ProjectManager = ({ user, socket }) => {
         socket.off('task-moved');
       }
     };
-  }, [socket]);
-
-  const fetchProjects = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/projects', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setProjects(data);
-        if (data.length > 0 && !selectedProject) {
-          setSelectedProject(data[0]);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching projects:', error);
-    }
-  };
+  }, [socket, fetchProjects]);
 
   const createProject = async (e) => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/projects', {
+      const response = await fetch(`${SERVER_URL}/api/projects`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -101,6 +103,8 @@ const ProjectManager = ({ user, socket }) => {
           priority: 'medium',
           status: 'planning'
         });
+        // Refetch projects to update the sidebar and selected project
+        fetchProjects();
       }
     } catch (error) {
       console.error('Error creating project:', error);
@@ -111,7 +115,7 @@ const ProjectManager = ({ user, socket }) => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/projects/${selectedProject._id}/tasks`, {
+      const response = await fetch(`${SERVER_URL}/api/projects/${selectedProject._id}/tasks`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -131,6 +135,10 @@ const ProjectManager = ({ user, socket }) => {
             ? { ...project, tasks: [...(project.tasks || []), newTask] }
             : project
         ));
+        setSelectedProject(prev => ({
+          ...prev,
+          tasks: [...(prev.tasks || []), newTask]
+        }));
         setShowTaskModal(false);
         setTaskForm({
           title: '',
@@ -148,7 +156,7 @@ const ProjectManager = ({ user, socket }) => {
   const moveTask = async (taskId, newStatus) => {
     try {
       const token = localStorage.getItem('token');
-      await fetch(`/api/projects/tasks/${taskId}/move`, {
+      await fetch(`${SERVER_URL}/api/projects/tasks/${taskId}/move`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -247,7 +255,13 @@ const ProjectManager = ({ user, socket }) => {
               </div>
 
               <div className="kanban-board">
-                <div className="kanban-column">
+                <div className="kanban-column"
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    const taskId = e.dataTransfer.getData('taskId');
+                    moveTask(taskId, 'todo');
+                  }}
+                >
                   <div className="column-header todo">
                     <h4>📋 To Do ({getTasksByStatus('todo').length})</h4>
                   </div>
@@ -257,7 +271,10 @@ const ProjectManager = ({ user, socket }) => {
                         key={task._id} 
                         className="task-card"
                         draggable
-                        onDragStart={(e) => e.dataTransfer.setData('taskId', task._id)}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('taskId', task._id);
+                          e.dataTransfer.setData('currentStatus', 'todo');
+                        }}
                       >
                         <h5>{task.title}</h5>
                         <p>{task.description}</p>
@@ -274,20 +291,27 @@ const ProjectManager = ({ user, socket }) => {
                   </div>
                 </div>
 
-                <div className="kanban-column">
+                <div className="kanban-column"
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    const taskId = e.dataTransfer.getData('taskId');
+                    moveTask(taskId, 'in_progress');
+                  }}
+                >
                   <div className="column-header in-progress">
                     <h4>🔄 In Progress ({getTasksByStatus('in_progress').length})</h4>
                   </div>
-                  <div 
-                    className="task-list"
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      const taskId = e.dataTransfer.getData('taskId');
-                      moveTask(taskId, 'in_progress');
-                    }}
-                  >
+                  <div className="task-list">
                     {getTasksByStatus('in_progress').map(task => (
-                      <div key={task._id} className="task-card">
+                      <div 
+                        key={task._id} 
+                        className="task-card"
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('taskId', task._id);
+                          e.dataTransfer.setData('currentStatus', 'in_progress');
+                        }}
+                      >
                         <h5>{task.title}</h5>
                         <p>{task.description}</p>
                         <div className="task-meta">
@@ -303,20 +327,27 @@ const ProjectManager = ({ user, socket }) => {
                   </div>
                 </div>
 
-                <div className="kanban-column">
+                <div className="kanban-column"
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    const taskId = e.dataTransfer.getData('taskId');
+                    moveTask(taskId, 'review');
+                  }}
+                >
                   <div className="column-header review">
                     <h4>👀 Review ({getTasksByStatus('review').length})</h4>
                   </div>
-                  <div 
-                    className="task-list"
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      const taskId = e.dataTransfer.getData('taskId');
-                      moveTask(taskId, 'review');
-                    }}
-                  >
+                  <div className="task-list">
                     {getTasksByStatus('review').map(task => (
-                      <div key={task._id} className="task-card">
+                      <div 
+                        key={task._id} 
+                        className="task-card"
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('taskId', task._id);
+                          e.dataTransfer.setData('currentStatus', 'review');
+                        }}
+                      >
                         <h5>{task.title}</h5>
                         <p>{task.description}</p>
                         <div className="task-meta">
@@ -332,20 +363,27 @@ const ProjectManager = ({ user, socket }) => {
                   </div>
                 </div>
 
-                <div className="kanban-column">
+                <div className="kanban-column"
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    const taskId = e.dataTransfer.getData('taskId');
+                    moveTask(taskId, 'done');
+                  }}
+                >
                   <div className="column-header done">
                     <h4>✅ Done ({getTasksByStatus('done').length})</h4>
                   </div>
-                  <div 
-                    className="task-list"
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      const taskId = e.dataTransfer.getData('taskId');
-                      moveTask(taskId, 'done');
-                    }}
-                  >
+                  <div className="task-list">
                     {getTasksByStatus('done').map(task => (
-                      <div key={task._id} className="task-card completed">
+                      <div 
+                        key={task._id} 
+                        className="task-card completed"
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('taskId', task._id);
+                          e.dataTransfer.setData('currentStatus', 'done');
+                        }}
+                      >
                         <h5>{task.title}</h5>
                         <p>{task.description}</p>
                         <div className="task-meta">

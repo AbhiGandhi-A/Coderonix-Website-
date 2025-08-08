@@ -17,6 +17,9 @@ const Register = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(null);
 
+  // Define your backend URL using the environment variable
+  const SERVER_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
+
   const addMember = () => {
     setFormData({
       ...formData,
@@ -56,7 +59,8 @@ const Register = () => {
     setError('');
 
     try {
-      const response = await fetch('/api/auth/register-group', {
+      // Use the absolute URL here
+      const response = await fetch(`${SERVER_URL}/api/auth/register-group`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -83,7 +87,7 @@ const Register = () => {
       <div className="register-page">
         <div className="container">
           <div className="register-success">
-            <h2>Group Created Successfully!</h2>
+            <h2>Group Created Successfully! 🎉</h2>
             <p>Group ID: <strong>{success.group_id}</strong></p>
             
             <div className="member-credentials">

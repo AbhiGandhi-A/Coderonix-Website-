@@ -1,6 +1,7 @@
 // src/components/FileManager.jsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import '../styles/global.css';
 
 const FileManager = ({ user, socket }) => {
   const [files, setFiles] = useState([]);
@@ -13,6 +14,70 @@ const FileManager = ({ user, socket }) => {
   // 💡 NEW: State for handling notification messages
   const [message, setMessage] = useState(null); 
 
+  // Define your backend URL using the environment variable
+  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
+
+  // 💡 NEW: Helper function to display messages
+  const displayMessage = (text, type = 'success') => {
+    setMessage({ text, type });
+    setTimeout(() => {
+      setMessage(null);
+    }, 5000); // Message disappears after 5 seconds
+  };
+  
+  const fetchFiles = useCallback(async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      // Use the absolute URL here
+      const response = await fetch(`${BACKEND_URL}/api/files`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch files');
+      }
+      const data = await response.json();
+      setFiles(data);
+    } catch (error) {
+      console.error('Error fetching files:', error);
+      displayMessage('Failed to load files.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [BACKEND_URL]);
+
+  const fetchMembers = useCallback(async () => {
+    if (!user || !user.group_id) {
+      console.warn('Cannot fetch members: user or group_id is missing.');
+      return;
+    }
+    try {
+      const token = localStorage.getItem('token');
+      // Use the absolute URL here
+      const response = await fetch(`${BACKEND_URL}/api/groups/by-id/${user.group_id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch members');
+      }
+      const data = await response.json();
+      const allMembers = [];
+      if (data.leader) allMembers.push(data.leader);
+      if (data.members && Array.isArray(data.members)) {
+        allMembers.push(...data.members);
+      }
+      setMembers(allMembers);
+    } catch (error) {
+      console.error('Error fetching members:', error);
+      displayMessage('Failed to load group members.', 'error');
+    }
+  }, [user, BACKEND_URL]);
+
+
   // Fetch files and members on component mount
   useEffect(() => {
     if (user && user.group_id) {
@@ -21,7 +86,7 @@ const FileManager = ({ user, socket }) => {
     } else {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, fetchFiles, fetchMembers]);
 
   // Socket listener for file-shared events
   useEffect(() => {
@@ -42,64 +107,6 @@ const FileManager = ({ user, socket }) => {
     }
   }, [socket]);
 
-  // 💡 NEW: Helper function to display messages
-  const displayMessage = (text, type = 'success') => {
-    setMessage({ text, type });
-    setTimeout(() => {
-      setMessage(null);
-    }, 5000); // Message disappears after 5 seconds
-  };
-
-  const fetchFiles = async () => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/files', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch files');
-      }
-      const data = await response.json();
-      setFiles(data);
-    } catch (error) {
-      console.error('Error fetching files:', error);
-      displayMessage('Failed to load files.', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchMembers = async () => {
-    if (!user || !user.group_id) {
-      console.warn('Cannot fetch members: user or group_id is missing.');
-      return;
-    }
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/groups/by-id/${user.group_id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch members');
-      }
-      const data = await response.json();
-      const allMembers = [];
-      if (data.leader) allMembers.push(data.leader);
-      if (data.members && Array.isArray(data.members)) {
-        allMembers.push(...data.members);
-      }
-      setMembers(allMembers);
-    } catch (error) {
-      console.error('Error fetching members:', error);
-      displayMessage('Failed to load group members.', 'error');
-    }
-  };
-
   const handleFileUpload = async (e) => {
     e.preventDefault();
     if (!selectedFile) {
@@ -112,7 +119,8 @@ const FileManager = ({ user, socket }) => {
     formData.append('shared_with', JSON.stringify(sharedWith));
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/files/upload', {
+      // Use the absolute URL here
+      const response = await fetch(`${BACKEND_URL}/api/files/upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -159,7 +167,8 @@ const FileManager = ({ user, socket }) => {
     if (window.confirm('Are you sure you want to delete this file? This action cannot be undone.')) {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch(`/api/files/${fileId}`, {
+        // Use the absolute URL here
+        const response = await fetch(`${BACKEND_URL}/api/files/${fileId}`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${token}`
@@ -303,7 +312,8 @@ const FileManager = ({ user, socket }) => {
                   </div>
                   <div className="file-actions">
                     <a
-                      href={`http://localhost:5000/${file.file_path}`}
+                      // Use the absolute URL for the download link
+                      href={`${BACKEND_URL}/${file.file_path}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="btn-secondary"
