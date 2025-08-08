@@ -466,8 +466,8 @@ body {
   margin-top: var(--space-6);
 }
 
-/* Landing Page */
-.landing-page {
+/* /* Landing Page */
+/* .landing-page {
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: var(--white);
@@ -618,7 +618,7 @@ body {
   background: rgba(0, 0, 0, 0.2);
   backdrop-filter: blur(10px);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
+} */
 
 /* Login & Register Pages */
 .login-page, .register-page {
@@ -915,7 +915,7 @@ body {
   flex-wrap: wrap;
 }
 
-.stat-item {
+/* .stat-item {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -924,7 +924,7 @@ body {
   border-radius: var(--radius);
   min-width: 60px;
 }
-
+ */
 .stat-item.overdue {
   background: rgba(239, 68, 68, 0.1);
   color: var(--error);
