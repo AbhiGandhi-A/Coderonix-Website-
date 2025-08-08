@@ -38,7 +38,7 @@ const clientOrigins = [
     "http://localhost:3000", 
     "http://127.0.0.1:3000",
     `http://${SERVER_IP}:3000`,
-    "https://coderonix-website-nc7p-6nbfbxjg1.vercel.app"
+    "https://coderonix-website-nc7p-5c68pgd1b.vercel.app"
 ];
 
 const io = new Server(server, {
