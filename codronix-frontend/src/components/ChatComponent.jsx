@@ -15,7 +15,7 @@ const ChatComponent = ({ user, socket }) => {
   useEffect(() => {
     console.log('ChatComponent mounted, socket:', socket);
     console.log('User:', user);
-    
+
     if (socket && user) {
       // Check if socket is already connected
       if (socket.connected) {
@@ -119,14 +119,14 @@ const ChatComponent = ({ user, socket }) => {
         username: user.username || user.member_id,
         name: user.name
       });
-      
+
       socket.emit('join-group', {
         groupId: user.group_id,
         userId: user.id || user._id,
         username: user.username || user.member_id,
         name: user.name
       });
-      
+
       hasJoinedGroup.current = true;
     }
   };
@@ -143,12 +143,13 @@ const ChatComponent = ({ user, socket }) => {
     try {
       console.log('📥 Fetching messages...');
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/messages', {
+      const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
+      const response = await fetch(`${BACKEND_URL}/api/messages`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         console.log('📥 Messages fetched:', data.length);
@@ -165,7 +166,7 @@ const ChatComponent = ({ user, socket }) => {
 
   const sendMessage = async (e) => {
     e.preventDefault();
-    
+
     if (!newMessage.trim()) {
       console.log('Empty message, not sending');
       return;
@@ -178,7 +179,7 @@ const ChatComponent = ({ user, socket }) => {
     }
 
     console.log('📤 Sending message:', newMessage);
-    
+
     const messageData = {
       group_id: user.group_id,
       sender_id: user.id || user._id,
@@ -195,7 +196,7 @@ const ChatComponent = ({ user, socket }) => {
     // Clear input immediately for better UX
     const messageToSend = newMessage;
     setNewMessage('');
-    
+
     // Stop typing indicator
     if (socket && socketReady) {
       socket.emit('typing-stop', {
@@ -219,7 +220,7 @@ const ChatComponent = ({ user, socket }) => {
 
   const handleInputChange = (e) => {
     setNewMessage(e.target.value);
-    
+
     if (socket && socketReady && socket.connected && e.target.value.trim()) {
       // Start typing indicator
       socket.emit('typing-start', {
@@ -265,7 +266,7 @@ const ChatComponent = ({ user, socket }) => {
         role: message.sender_id.role
       };
     }
-    
+
     // If sender_info is provided (from socket)
     if (message.sender_info) {
       return {
@@ -274,7 +275,7 @@ const ChatComponent = ({ user, socket }) => {
         role: message.sender_info.role
       };
     }
-    
+
     // Fallback
     return {
       id: message.sender_id,
@@ -324,7 +325,7 @@ const ChatComponent = ({ user, socket }) => {
           messages.map(message => {
             const senderInfo = getSenderInfo(message);
             const isOwnMessage = senderInfo.id === (user.id || user._id);
-            
+
             return (
               <div
                 key={message._id}
@@ -348,13 +349,13 @@ const ChatComponent = ({ user, socket }) => {
             );
           })
         )}
-        
+
         {typingUsers.length > 0 && (
           <div className="typing-indicator">
             <span>{typingUsers.join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...</span>
           </div>
         )}
-        
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -367,7 +368,7 @@ const ChatComponent = ({ user, socket }) => {
           className="message-input"
           disabled={!socketReady || !socket.connected}
         />
-        <button 
+        <button
           type="submit"
           className="send-btn"
           disabled={!socketReady || !socket.connected || !newMessage.trim()}
