@@ -9,7 +9,7 @@ import MemberManager from '../components/MemberManager';
 import NotificationBar from '../components/NotificationBar';
 import Calendar from '../components/Calendar';
 import Analytics from '../components/Analytics';
-import Folders from '../components/Folders'; // 💡 ADD THIS LINE
+import Folders from '../components/Folders';
 import io from 'socket.io-client';
 
 const Dashboard = ({ user, logout }) => {
@@ -18,23 +18,34 @@ const Dashboard = ({ user, logout }) => {
     const [notifications, setNotifications] = useState([]);
     const [connectionStatus, setConnectionStatus] = useState('connecting');
 
-    // 💡 Define the server URL using your network IP
-    const SERVER_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';;
+    // Use the public URL of your deployed Render backend
+    const SERVER_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
 
     useEffect(() => {
+        // Prevent socket connection if user data isn't ready
+        if (!user || !user.group_id) {
+            console.warn('User or group ID is not available. Cannot establish socket connection.');
+            return;
+        }
+
         console.log('🚀 Dashboard mounting, creating socket connection...');
-        console.log('User:', user);
-        
-        // 💡 Use the SERVER_URL constant here
+        console.log('Connecting to:', SERVER_URL);
+
+        // Connect to the public backend URL
         const newSocket = io(SERVER_URL, {
             transports: ['websocket', 'polling'],
             timeout: 20000,
             forceNew: true,
-            autoConnect: true,
             reconnection: true,
             reconnectionDelay: 1000,
             reconnectionAttempts: 5,
-            maxReconnectionAttempts: 5
+            maxReconnectionAttempts: 5,
+            // Pass user data as a query parameter for immediate join
+            query: {
+                groupId: user.group_id,
+                userId: user._id,
+                name: user.name
+            }
         });
 
         setSocket(newSocket);
@@ -42,9 +53,6 @@ const Dashboard = ({ user, logout }) => {
         newSocket.on('connect', () => {
             console.log('✅ Dashboard: Socket connected:', newSocket.id);
             setConnectionStatus('connected');
-            if (user && user.group_id) {
-                newSocket.emit('join-group', { groupId: user.group_id, userId: user._id, name: user.name });
-            }
         });
 
         newSocket.on('disconnect', (reason) => {
@@ -60,9 +68,6 @@ const Dashboard = ({ user, logout }) => {
         newSocket.on('reconnect', (attemptNumber) => {
             console.log('🔄 Dashboard: Reconnected after', attemptNumber, 'attempts');
             setConnectionStatus('connected');
-            if (user && user.group_id) {
-                newSocket.emit('join-group', { groupId: user.group_id, userId: user._id, name: user.name });
-            }
         });
 
         newSocket.on('reconnecting', (attemptNumber) => {
@@ -122,7 +127,6 @@ const Dashboard = ({ user, logout }) => {
             }]);
         });
         
-        // Add listener for analytics updates
         newSocket.on('analytics-update', (data) => {
             console.log('📈 Dashboard: Analytics data updated:', data);
         });
@@ -139,7 +143,7 @@ const Dashboard = ({ user, logout }) => {
                 newSocket.disconnect();
             }
         };
-    }, [user.group_id, activeTab]);
+    }, [user, activeTab, SERVER_URL]); // Add SERVER_URL to the dependency array
 
     const removeNotification = (id) => {
         setNotifications(prev => prev.filter(notif => notif.id !== id));
@@ -274,7 +278,6 @@ const Dashboard = ({ user, logout }) => {
                             <span>Analytics</span>
                         </button>
 
-                        {/* 💡 Renamed 'Files' tab to 'File Manager' to avoid confusion with the new 'Folders' feature */}
                         <button 
                             className={`nav-tab ${activeTab === 'files' ? 'active' : ''}`}
                             onClick={() => setActiveTab('files')}
@@ -288,7 +291,6 @@ const Dashboard = ({ user, logout }) => {
                             )}
                         </button>
 
-                        {/* 💡 NEW 'Folders' TAB */}
                         <button 
                             className={`nav-tab ${activeTab === 'folders' ? 'active' : ''}`}
                             onClick={() => setActiveTab('folders')}
@@ -336,7 +338,6 @@ const Dashboard = ({ user, logout }) => {
                         <FileManager user={user} socket={socket} />
                     )}
                     
-                    {/* 💡 NEW CONDITIONAL RENDERING FOR FOLDERS COMPONENT */}
                     {activeTab === 'folders' && (
                         <Folders user={user} socket={socket} />
                     )}
