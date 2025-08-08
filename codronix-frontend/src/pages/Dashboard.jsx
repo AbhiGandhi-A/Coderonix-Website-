@@ -19,7 +19,7 @@ const Dashboard = ({ user, logout }) => {
     const [connectionStatus, setConnectionStatus] = useState('connecting');
 
     // 💡 Define the server URL using your network IP
-    const SERVER_URL = 'http://192.168.1.15:5000';
+    const SERVER_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';;
 
     useEffect(() => {
         console.log('🚀 Dashboard mounting, creating socket connection...');

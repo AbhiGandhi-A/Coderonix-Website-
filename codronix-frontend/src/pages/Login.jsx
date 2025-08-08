@@ -17,13 +17,18 @@ const Login = ({ setUser }) => {
   const [forgotMessage, setForgotMessage] = useState('');
   const [forgotError, setForgotError] = useState('');
 
+  // 💡 Define your backend URL using an environment variable
+  // For Vercel, this will be set in your project's environment variables.
+  // For local development, you'd set it in a .env file (e.g., VITE_BACKEND_URL=http://localhost:5000)
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000'; // Fallback for local dev
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     
     try {
-      const response = await fetch('https://coderonix-website.onrender.com/api/auth/login', {
+      const response = await fetch(`${BACKEND_URL}/api/auth/login`, { // 💡 Use BACKEND_URL
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -54,7 +59,7 @@ const Login = ({ setUser }) => {
     setForgotMessage('');
 
     try {
-      const response = await fetch('https://coderonix-website.onrender.com/api/auth/forgot-password', {
+      const response = await fetch(`${BACKEND_URL}/api/auth/forgot-password`, { // 💡 Use BACKEND_URL
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

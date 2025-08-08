@@ -31,13 +31,14 @@ const docsRoutes = require('./routes/docs');
 const app = express();
 const server = http.createServer(app);
 
-const SERVER_IP = '192.168.1.15'; // Remove http:// prefix
+const SERVER_IP = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';// Remove http:// prefix
 const PORT = process.env.PORT || 5000;
 
 const clientOrigins = [
     "http://localhost:3000", 
     "http://127.0.0.1:3000",
     `http://${SERVER_IP}:3000`
+    "https://coderonix-website-nc7p-6nbfbxjg1.vercel.app"
 ];
 
 const io = new Server(server, {
@@ -56,6 +57,11 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
+
+app.get('/', (req, res) => {
+  res.send('Coderonix API is live!');
+});
+
 
 // Add this after the existing middleware but before the routes
 app.use((req, res, next) => {

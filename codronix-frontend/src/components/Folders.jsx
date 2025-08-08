@@ -5,7 +5,7 @@ import 'react-draft-wysiwyg/dist/react-draft-wysiwyg.css';
 import '../styles/Folders.css';
 import DocumentEditor from './DocumentEditor';
 
-const SERVER_URL = 'http://192.168.1.15:5000';
+const SERVER_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';;
 
 const Folders = ({ user, socket }) => {
   const [folders, setFolders] = useState([]);

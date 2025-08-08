@@ -22,7 +22,7 @@ const EditorPage = () => {
     const [isConnected, setIsConnected] = useState(false);
 
     // 💡 Define the server URL using your network IP
-    const SERVER_URL = 'http://192.168.1.15:5000';
+    const SERVER_URL = 'http://.1.15:5000';
 
     useEffect(() => {
         const init = async () => {
