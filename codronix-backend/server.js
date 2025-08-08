@@ -31,15 +31,21 @@ const docsRoutes = require('./routes/docs');
 const app = express();
 const server = http.createServer(app);
 
-const SERVER_IP = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';// Remove http:// prefix
+// It's best to leave SERVER_IP as '0.0.0.0' for Render deployments
+// or remove it if not explicitly used for binding.
+// The clientOrigins should directly use the full URLs.
+const SERVER_IP = '0.0.0.0'; 
 const PORT = process.env.PORT || 5000;
 
+// Define client origins using environment variables for production and localhost for development
 const clientOrigins = [
     "http://localhost:3000", 
     "http://127.0.0.1:3000",
-    `http://${SERVER_IP}:3000`,
-    "https://coderonix-website-nc7p-5c68pgd1b.vercel.app"
-];
+    // Dynamically add the Vercel frontend URL if available
+    process.env.VERCEL_FRONTEND_URL,
+    // If you still need the local IP for some specific dev setup, keep it like this:
+    // `http://${SERVER_IP}:3000` // This is usually not needed when using localhost
+].filter(Boolean); // Filter out any undefined/null values
 
 const io = new Server(server, {
     cors: {
