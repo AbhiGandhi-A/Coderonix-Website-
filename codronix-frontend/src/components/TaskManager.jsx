@@ -31,11 +31,10 @@ const TaskManager = ({ user, socket }) => {
     reminder_date: '',
     attachments: []
   });
+  const [message, setMessage] = useState(null); // State for success/error messages
 
   // Define your backend URL using the environment variable
-  // This will be 'https://coderonix-website.onrender.com' in production
-  // and 'http://localhost:5000' in development.
-  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
+  const SERVER_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
 
   const priorityOptions = [
     { value: 'low', label: 'Low', color: '#10b981' },
@@ -62,29 +61,21 @@ const TaskManager = ({ user, socket }) => {
     { value: 'cancelled', label: 'Cancelled' }
   ];
 
-  // Helper function to handle fetch responses and parse JSON or text
-  const handleResponse = async (response, successMessage) => {
-    if (response.ok) {
-      const data = await response.json();
-      console.log(successMessage, data);
-      return data;
-    } else {
-      const isJson = response.headers.get('content-type')?.includes('application/json');
-      const errorData = isJson ? await response.json() : await response.text();
-      const errorMessage = isJson ? (errorData.message || 'Unknown error') : `Server responded with status ${response.status}: ${errorData}`;
-      throw new Error(errorMessage);
-    }
+  // Helper function to display messages
+  const displayMessage = (text, type = 'success') => {
+    setMessage({ text, type });
+    setTimeout(() => {
+      setMessage(null);
+    }, 5000); // Message disappears after 5 seconds
   };
 
-  // Memoize fetch functions to prevent unnecessary re-creations and issues with useEffect dependencies
   const fetchTasks = useCallback(async () => {
+    setLoading(true);
     try {
-      setLoading(true);
       console.log('Fetching tasks for user role:', user.role);
       
       const token = localStorage.getItem('token');
-      // Use BACKEND_URL for absolute path
-      const endpoint = user.role === 'leader' ? `${BACKEND_URL}/api/tasks` : `${BACKEND_URL}/api/tasks/my-tasks`;
+      const endpoint = user.role === 'leader' ? '/api/tasks' : '/api/tasks/my-tasks';
       
       // Build query parameters
       const queryParams = new URLSearchParams();
@@ -92,7 +83,7 @@ const TaskManager = ({ user, socket }) => {
       if (filters.priority) queryParams.append('priority', filters.priority);
       if (filters.category) queryParams.append('category', filters.category);
       
-      const url = `${endpoint}${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+      const url = `${SERVER_URL}${endpoint}${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
       console.log('Fetching from URL:', url);
       
       const response = await fetch(url, {
@@ -103,7 +94,11 @@ const TaskManager = ({ user, socket }) => {
       
       console.log('Fetch tasks response status:', response.status);
       
-      const data = await handleResponse(response, 'Tasks fetched successfully:');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
       const tasksArray = data.tasks || data; // Handle both paginated and non-paginated responses
       
       console.log('Fetched tasks:', tasksArray.length);
@@ -112,44 +107,46 @@ const TaskManager = ({ user, socket }) => {
       setLoading(false);
     } catch (error) {
       console.error('Error fetching tasks:', error);
+      displayMessage('Failed to load tasks.', 'error'); // Use displayMessage
       setLoading(false);
     }
-  }, [user.role, filters, BACKEND_URL]); // Add filters and BACKEND_URL to dependencies
+  }, [user.role, filters, SERVER_URL]);
 
   const fetchTaskStats = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
-      // Use BACKEND_URL for absolute path
-      const response = await fetch(`${BACKEND_URL}/api/tasks/stats`, {
+      const response = await fetch(`${SERVER_URL}/api/tasks/stats`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
       
-      const stats = await handleResponse(response, 'Task stats fetched successfully:');
-      setTaskStats(stats);
+      if (response.ok) {
+        const stats = await response.json();
+        setTaskStats(stats);
+      }
     } catch (error) {
       console.error('Error fetching task stats:', error);
+      // No message for stats fetch errors, as it's not critical for main functionality
     }
-  }, [BACKEND_URL]); // Add BACKEND_URL to dependencies
+  }, [SERVER_URL]);
 
   const fetchMembers = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
-      // Use BACKEND_URL for absolute path
-      const response = await fetch(`${BACKEND_URL}/api/groups/by-id/${user.group_id}`, {
+      const response = await fetch(`${SERVER_URL}/api/groups/by-id/${user.group_id}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
       
-      const data = await handleResponse(response, 'Members fetched successfully:');
+      const data = await response.json();
       setMembers([data.leader, ...data.members]);
     } catch (error) {
       console.error('Error fetching members:', error);
+      displayMessage('Failed to load group members.', 'error'); // Use displayMessage
     }
-  }, [user.group_id, BACKEND_URL]); // Add BACKEND_URL to dependencies
-
+  }, [user.group_id, SERVER_URL]);
 
   useEffect(() => {
     fetchTasks();
@@ -184,7 +181,7 @@ const TaskManager = ({ user, socket }) => {
         socket.off('task-progress-updated');
       };
     }
-  }, [socket, user.group_id, user.role, fetchTasks, fetchTaskStats, fetchMembers]); // Add memoized fetch functions to dependencies
+  }, [socket, user.group_id, user.role, fetchTasks, fetchTaskStats, fetchMembers]);
 
   // Save time tracking to localStorage whenever it changes
   useEffect(() => {
@@ -201,7 +198,7 @@ const TaskManager = ({ user, socket }) => {
       
       // Validate required fields on client side
       if (!newTask.title.trim() || !newTask.description.trim() || newTask.assigned_to.length === 0 || !newTask.deadline) {
-        alert('Please fill in all required fields: title, description, assigned members, and deadline.');
+        displayMessage('Please fill in all required fields: title, description, assigned members, and deadline.', 'error');
         return;
       }
       
@@ -226,12 +223,11 @@ const TaskManager = ({ user, socket }) => {
 
       console.log('Sending request to create task...');
 
-      // Use BACKEND_URL for absolute path
-      const response = await fetch(`${BACKEND_URL}/api/tasks`, {
+      const response = await fetch(`${SERVER_URL}/api/tasks`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
-          // Don't set Content-Type header when using FormData, browser sets it automatically
+          // Don't set Content-Type header when using FormData, browser handles it
         },
         body: formData
       });
@@ -239,35 +235,69 @@ const TaskManager = ({ user, socket }) => {
       console.log('Response status:', response.status);
       console.log('Response headers:', response.headers);
 
-      const task = await handleResponse(response, 'Task created successfully:');
-      
-      setTasks([task, ...tasks]);
-      setNewTask({
-        title: '',
-        description: '',
-        assigned_to: [],
-        deadline: '',
-        priority: 'medium',
-        category: 'other',
-        tags: [],
-        estimated_hours: '',
-        reminder_date: '',
-        attachments: []
-      });
-      setShowCreateForm(false);
-      fetchTaskStats();
-      
-      if (socket) {
-        socket.emit('task-update', { 
-          group_id: user.group_id, 
-          task: { _id: task._id, title: task.title, status: task.status, priority: task.priority },
-          action: 'created',
-          user: { _id: user._id, name: user.name }
+      if (response.ok) {
+        const task = await response.json();
+        console.log('Task created successfully:', task);
+        
+        setTasks([task, ...tasks]);
+        setNewTask({
+          title: '',
+          description: '',
+          assigned_to: [],
+          deadline: '',
+          priority: 'medium',
+          category: 'other',
+          tags: [],
+          estimated_hours: '',
+          reminder_date: '',
+          attachments: []
         });
+        setShowCreateForm(false);
+        fetchTaskStats();
+        displayMessage('Task created successfully!', 'success'); // Use displayMessage
+        
+        if (socket) {
+          socket.emit('task-update', { 
+            group_id: user.group_id, 
+            task: {
+              _id: task._id,
+              title: task.title,
+              status: task.status,
+              priority: task.priority
+            },
+            action: 'created',
+            user: {
+              _id: user._id,
+              name: user.name
+            }
+          });
+        }
+      } else {
+        // Try to parse error response
+        let errorMessage = 'Failed to create task';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+          console.error('Server error response:', errorData);
+        } catch (parseError) {
+          // If response is not JSON (like HTML error page), get text
+          try {
+            const errorText = await response.text();
+            console.error('Server error (non-JSON):', errorText);
+            if (errorText.includes('<!DOCTYPE')) {
+              errorMessage = 'Server error - please check server logs or network connection.';
+            } else {
+              errorMessage = errorText;
+            }
+          } catch (textError) {
+            console.error('Could not parse error response:', textError);
+          }
+        }
+        displayMessage(`Error creating task: ${errorMessage}`, 'error'); // Use displayMessage
       }
     } catch (error) {
       console.error('Network error creating task:', error);
-      alert(`Error creating task: ${error.message}`);
+      displayMessage(`Network error creating task: ${error.message}`, 'error'); // Use displayMessage
     }
   };
 
@@ -275,8 +305,7 @@ const TaskManager = ({ user, socket }) => {
     try {
       const token = localStorage.getItem('token');
       
-      // Use BACKEND_URL for absolute path
-      const response = await fetch(`${BACKEND_URL}/api/tasks/${taskId}/status`, {
+      const response = await fetch(`${SERVER_URL}/api/tasks/${taskId}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -289,38 +318,50 @@ const TaskManager = ({ user, socket }) => {
         })
       });
 
-      const updatedTask = await handleResponse(response, 'Task started successfully:');
+      if (response.ok) {
+        const updatedTask = await response.json();
+        setTasks(tasks.map(task =>
+          task._id === taskId ? updatedTask : task
+        ));
 
-      setTasks(tasks.map(task =>
-        task._id === taskId ? updatedTask : task
-      ));
+        // Start time tracking
+        setTimeTracking(prev => ({
+          ...prev,
+          [taskId]: {
+            startTime: Date.now(),
+            totalTime: prev[taskId]?.totalTime || 0,
+            isRunning: true
+          }
+        }));
 
-      // Start time tracking
-      setTimeTracking(prev => ({
-        ...prev,
-        [taskId]: {
-          startTime: Date.now(),
-          totalTime: prev[taskId]?.totalTime || 0,
-          isRunning: true
+        // Show task details modal
+        setSelectedTask(updatedTask);
+        setShowTaskModal(true);
+        fetchTaskStats();
+        displayMessage('Task started successfully!', 'success'); // Use displayMessage
+
+        if (socket) {
+          socket.emit('task-update', { 
+            group_id: user.group_id, 
+            task: {
+              _id: updatedTask._id,
+              title: updatedTask.title,
+              status: updatedTask.status
+            },
+            action: 'started',
+            user: {
+              _id: user._id,
+              name: user.name
+            }
+          });
         }
-      }));
-
-      // Show task details modal
-      setSelectedTask(updatedTask);
-      setShowTaskModal(true);
-      fetchTaskStats();
-
-      if (socket) {
-        socket.emit('task-update', { 
-          group_id: user.group_id, 
-          task: { _id: updatedTask._id, title: updatedTask.title, status: updatedTask.status },
-          action: 'started',
-          user: { _id: user._id, name: user.name }
-        });
+      } else {
+        const errorData = await response.json();
+        displayMessage(`Failed to start task: ${errorData.message || 'Unknown error'}`, 'error');
       }
     } catch (error) {
       console.error('Error starting task:', error);
-      alert(`Error starting task: ${error.message}`);
+      displayMessage('Network error starting task.', 'error');
     }
   };
 
@@ -341,6 +382,7 @@ const TaskManager = ({ user, socket }) => {
       }
       return prev;
     });
+    displayMessage('Task paused.', 'info');
   };
 
   const resumeTask = (taskId) => {
@@ -352,6 +394,7 @@ const TaskManager = ({ user, socket }) => {
         isRunning: true
       }
     }));
+    displayMessage('Task resumed.', 'success');
   };
 
   const updateTaskStatus = async (taskId, status) => {
@@ -362,11 +405,10 @@ const TaskManager = ({ user, socket }) => {
       if (status === 'completed') {
         updateData.completed_at = new Date().toISOString();
         updateData.completed_by = user._id;
-        pauseTask(taskId);
+        pauseTask(taskId); // Pause time tracking when task is completed
       }
 
-      // Use BACKEND_URL for absolute path
-      const response = await fetch(`${BACKEND_URL}/api/tasks/${taskId}/status`, {
+      const response = await fetch(`${SERVER_URL}/api/tasks/${taskId}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -375,32 +417,44 @@ const TaskManager = ({ user, socket }) => {
         body: JSON.stringify(updateData)
       });
 
-      const updatedTask = await handleResponse(response, 'Task status updated successfully:');
+      if (response.ok) {
+        const updatedTask = await response.json();
+        setTasks(tasks.map(task =>
+          task._id === taskId ? updatedTask : task
+        ));
+        fetchTaskStats();
+        displayMessage(`Task status updated to ${status}!`, 'success'); // Use displayMessage
 
-      setTasks(tasks.map(task =>
-        task._id === taskId ? updatedTask : task
-      ));
-      fetchTaskStats();
-
-      if (socket) {
-        socket.emit('task-update', { 
-          group_id: user.group_id, 
-          task: { _id: updatedTask._id, title: updatedTask.title, status: updatedTask.status, completedBy: updatedTask.completedBy },
-          action: status,
-          user: { _id: user._id, name: user.name }
-        });
+        if (socket) {
+          socket.emit('task-update', { 
+            group_id: user.group_id, 
+            task: {
+              _id: updatedTask._id,
+              title: updatedTask.title,
+              status: updatedTask.status,
+              completedBy: updatedTask.completedBy
+            },
+            action: status,
+            user: {
+              _id: user._id,
+              name: user.name
+            }
+          });
+        }
+      } else {
+        const errorData = await response.json();
+        displayMessage(`Failed to update task status: ${errorData.message || 'Unknown error'}`, 'error');
       }
     } catch (error) {
-      console.error('Error updating task status:', error);
-      alert(`Error updating task status: ${error.message}`);
+      console.error('Error updating task:', error);
+      displayMessage('Network error updating task status.', 'error');
     }
   };
 
   const updateTaskProgress = async (taskId, progress) => {
     try {
       const token = localStorage.getItem('token');
-      // Use BACKEND_URL for absolute path
-      const response = await fetch(`${BACKEND_URL}/api/tasks/${taskId}/progress`, {
+      const response = await fetch(`${SERVER_URL}/api/tasks/${taskId}/progress`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -409,35 +463,46 @@ const TaskManager = ({ user, socket }) => {
         body: JSON.stringify({ progress })
       });
 
-      const updatedTask = await handleResponse(response, 'Task progress updated successfully:');
+      if (response.ok) {
+        const updatedTask = await response.json();
+        setTasks(tasks.map(task =>
+          task._id === taskId ? updatedTask : task
+        ));
 
-      setTasks(tasks.map(task =>
-        task._id === taskId ? updatedTask : task
-      ));
+        setTaskProgress(prev => ({
+          ...prev,
+          [taskId]: progress
+        }));
+        displayMessage('Task progress updated!', 'success'); // Use displayMessage
 
-      setTaskProgress(prev => ({
-        ...prev,
-        [taskId]: progress
-      }));
-
-      if (socket) {
-        socket.emit('task-progress-update', {
-          group_id: user.group_id,
-          task: { _id: updatedTask._id, title: updatedTask.title, progress: updatedTask.progress },
-          user: { _id: user._id, name: user.name }
-        });
+        if (socket) {
+          socket.emit('task-progress-update', {
+            group_id: user.group_id,
+            task: {
+              _id: updatedTask._id,
+              title: updatedTask.title,
+              progress: updatedTask.progress
+            },
+            user: {
+              _id: user._id,
+              name: user.name
+            }
+          });
+        }
+      } else {
+        const errorData = await response.json();
+        displayMessage(`Failed to update task progress: ${errorData.message || 'Unknown error'}`, 'error');
       }
     } catch (error) {
       console.error('Error updating task progress:', error);
-      alert(`Error updating task progress: ${error.message}`);
+      displayMessage('Network error updating task progress.', 'error');
     }
   };
 
   const addTaskComment = async (taskId, comment) => {
     try {
       const token = localStorage.getItem('token');
-      // Use BACKEND_URL for absolute path
-      const response = await fetch(`${BACKEND_URL}/api/tasks/${taskId}/comments`, {
+      const response = await fetch(`${SERVER_URL}/api/tasks/${taskId}/comments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -446,24 +511,29 @@ const TaskManager = ({ user, socket }) => {
         body: JSON.stringify({ comment })
       });
 
-      const newCommentData = await handleResponse(response, 'Comment added successfully:');
-      
-      setTaskComments(prev => ({
-        ...prev,
-        [taskId]: [...(prev[taskId] || []), newCommentData]
-      }));
+      if (response.ok) {
+        const newCommentData = await response.json();
+        setTaskComments(prev => ({
+          ...prev,
+          [taskId]: [...(prev[taskId] || []), newCommentData]
+        }));
+        displayMessage('Comment added!', 'success'); // Use displayMessage
 
-      if (socket) {
-        socket.emit('task-comment', {
-          group_id: user.group_id,
-          taskId,
-          comment: newCommentData,
-          user: user.name
-        });
+        if (socket) {
+          socket.emit('task-comment', {
+            group_id: user.group_id,
+            taskId,
+            comment: newCommentData,
+            user: user.name
+          });
+        }
+      } else {
+        const errorData = await response.json();
+        displayMessage(`Failed to add comment: ${errorData.message || 'Unknown error'}`, 'error');
       }
     } catch (error) {
       console.error('Error adding comment:', error);
-      alert(`Error adding comment: ${error.message}`);
+      displayMessage('Network error adding comment.', 'error');
     }
   };
 
@@ -545,10 +615,12 @@ const TaskManager = ({ user, socket }) => {
   };
 
   const filteredTasks = tasks.filter(task => {
-    if (filters.search && !task.title.toLowerCase().includes(filters.search.toLowerCase())) {
-      return false;
-    }
-    return true;
+    const matchesSearch = filters.search ? task.title.toLowerCase().includes(filters.search.toLowerCase()) : true;
+    const matchesStatus = filters.status ? task.status === filters.status : true;
+    const matchesPriority = filters.priority ? task.priority === filters.priority : true;
+    const matchesCategory = filters.category ? task.category === filters.category : true;
+    
+    return matchesSearch && matchesStatus && matchesPriority && matchesCategory;
   });
 
   if (loading) {
