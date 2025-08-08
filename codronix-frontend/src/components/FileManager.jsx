@@ -1,3 +1,5 @@
+// src/components/FileManager.jsx
+
 import React, { useState, useEffect } from 'react';
 
 const FileManager = ({ user, socket }) => {
@@ -7,31 +9,49 @@ const FileManager = ({ user, socket }) => {
   const [members, setMembers] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
   const [sharedWith, setSharedWith] = useState([]);
+  
+  // 💡 NEW: State for handling notification messages
+  const [message, setMessage] = useState(null); 
 
+  // Fetch files and members on component mount
   useEffect(() => {
-    fetchFiles();
-    fetchMembers();
-  }, []);
+    if (user && user.group_id) {
+      fetchFiles();
+      fetchMembers();
+    } else {
+      setLoading(false);
+    }
+  }, [user]);
 
+  // Socket listener for file-shared events
   useEffect(() => {
     if (socket) {
-      socket.on('file-shared', (file) => {
-        // 💡 FIXED: Check for duplicate file before updating the state to avoid key collision
-        setFiles(prev => {
-          if (!prev.some(f => f._id === file._id)) {
-            return [file, ...prev];
+      const handleFileShared = (newFile) => {
+        setFiles(prevFiles => {
+          if (newFile && newFile._id && !prevFiles.some(file => file._id === newFile._id)) {
+            return [newFile, ...prevFiles];
           }
-          return prev; // Do not add duplicate
+          return prevFiles;
         });
-      });
+      };
+      socket.on('file-shared', handleFileShared);
 
       return () => {
-        socket.off('file-shared');
+        socket.off('file-shared', handleFileShared);
       };
     }
   }, [socket]);
 
+  // 💡 NEW: Helper function to display messages
+  const displayMessage = (text, type = 'success') => {
+    setMessage({ text, type });
+    setTimeout(() => {
+      setMessage(null);
+    }, 5000); // Message disappears after 5 seconds
+  };
+
   const fetchFiles = async () => {
+    setLoading(true);
     try {
       const token = localStorage.getItem('token');
       const response = await fetch('/api/files', {
@@ -39,16 +59,24 @@ const FileManager = ({ user, socket }) => {
           'Authorization': `Bearer ${token}`
         }
       });
+      if (!response.ok) {
+        throw new Error('Failed to fetch files');
+      }
       const data = await response.json();
       setFiles(data);
-      setLoading(false);
     } catch (error) {
       console.error('Error fetching files:', error);
+      displayMessage('Failed to load files.', 'error');
+    } finally {
       setLoading(false);
     }
   };
 
   const fetchMembers = async () => {
+    if (!user || !user.group_id) {
+      console.warn('Cannot fetch members: user or group_id is missing.');
+      return;
+    }
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`/api/groups/by-id/${user.group_id}`, {
@@ -56,16 +84,28 @@ const FileManager = ({ user, socket }) => {
           'Authorization': `Bearer ${token}`
         }
       });
+      if (!response.ok) {
+        throw new Error('Failed to fetch members');
+      }
       const data = await response.json();
-      setMembers([data.leader, ...data.members]);
+      const allMembers = [];
+      if (data.leader) allMembers.push(data.leader);
+      if (data.members && Array.isArray(data.members)) {
+        allMembers.push(...data.members);
+      }
+      setMembers(allMembers);
     } catch (error) {
       console.error('Error fetching members:', error);
+      displayMessage('Failed to load group members.', 'error');
     }
   };
 
   const handleFileUpload = async (e) => {
     e.preventDefault();
-    if (!selectedFile) return;
+    if (!selectedFile) {
+      displayMessage('Please select a file to upload.', 'error');
+      return;
+    }
     setUploading(true);
     const formData = new FormData();
     formData.append('file', selectedFile);
@@ -81,93 +121,150 @@ const FileManager = ({ user, socket }) => {
       });
       if (response.ok) {
         const newFile = await response.json();
-        setFiles([newFile, ...files]);
+        setFiles(prevFiles => [newFile, ...prevFiles]);
         setSelectedFile(null);
         setSharedWith([]);
-        if (socket) {
-          // 💡 FIXED: Emit the uploadedBy and file_name for notifications.
+        if (socket && user) {
           socket.emit('file-shared', { 
             group_id: user.group_id, 
-            uploadedBy: user.id, // The user ID is sent
-            file_name: newFile.file_name,
-            file: newFile // Also send the full file object
+            uploadedBy: user._id, 
+            fileName: newFile.file_name,
+            file: newFile
           });
         }
+        // 💡 REPLACED alert() with displayMessage()
+        displayMessage('File uploaded successfully!', 'success');
+        
+      } else {
+        const errorData = await response.json();
+        // 💡 REPLACED alert() with displayMessage()
+        displayMessage(`Failed to upload file: ${errorData.message || 'Unknown error'}`, 'error');
+        console.error('Error uploading file:', errorData);
       }
     } catch (error) {
       console.error('Error uploading file:', error);
+      // 💡 REPLACED alert() with displayMessage()
+      displayMessage('An error occurred during file upload.', 'error');
+    } finally {
+      setUploading(false);
     }
-    setUploading(false);
+  };
+
+  const handleDeleteFile = async (fileId) => {
+    if (!fileId) {
+      console.error('Attempted to delete file with undefined ID.');
+      displayMessage('Cannot delete file: ID is missing.', 'error');
+      return;
+    }
+    if (window.confirm('Are you sure you want to delete this file? This action cannot be undone.')) {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`/api/files/${fileId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          setFiles(prevFiles => prevFiles.filter(file => file._id !== fileId));
+          console.log(`File with ID ${fileId} successfully deleted.`);
+          // 💡 REPLACED alert() with displayMessage()
+          displayMessage('File deleted successfully!', 'success');
+        } else {
+          const errorData = await response.json();
+          // 💡 REPLACED alert() with displayMessage()
+          displayMessage(`Failed to delete file: ${errorData.message || 'Unknown error'}`, 'error');
+          console.error('Error deleting file:', errorData);
+        }
+      } catch (error) {
+        console.error('Error deleting file:', error);
+        // 💡 REPLACED alert() with displayMessage()
+        displayMessage('An error occurred while deleting the file.', 'error');
+      }
+    }
   };
 
   const toggleMemberShare = (memberId) => {
-    if (sharedWith.includes(memberId)) {
-      setSharedWith(sharedWith.filter(id => id !== memberId));
-    } else {
-      setSharedWith([...sharedWith, memberId]);
-    }
+    setSharedWith(prevSharedWith => {
+      if (prevSharedWith.includes(memberId)) {
+        return prevSharedWith.filter(id => id !== memberId);
+      } else {
+        return [...prevSharedWith, memberId];
+      }
+    });
   };
 
-  const formatFileSize = (bytes) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  const isValidDate = (date) => {
+    return date instanceof Date && !isNaN(date);
   };
 
   if (loading) {
     return <div className="loading">Loading files...</div>;
   }
 
-  const isValidDate = (date) => {
-    return date instanceof Date && !isNaN(date);
-  };
-
   return (
     <div className="file-manager">
+      {/* 💡 NEW: Notification message display */}
+      {message && (
+        <div className={`notification-message ${message.type}`}>
+          <span>{message.text}</span>
+          <button onClick={() => setMessage(null)} className="close-btn">
+            &times;
+          </button>
+        </div>
+      )}
+
       <div className="file-header">
         <h2>File Sharing</h2>
       </div>
-
       <div className="upload-section">
         <h3>Upload New File</h3>
         <form onSubmit={handleFileUpload} className="upload-form">
           <div className="form-group">
             <label>Select File</label>
-            <input
-              type="file"
-              onChange={(e) => setSelectedFile(e.target.files[0])}
-              className="file-input"
-              required
-            />
+            <div className="file-input-wrapper">
+              <input
+                id="file-upload"
+                type="file"
+                onChange={(e) => setSelectedFile(e.target.files[0])}
+                className="file-input"
+                required
+              />
+              <label htmlFor="file-upload" className="file-input-label">
+                <span className="file-icon">📁</span>
+                <span className="file-name">
+                  {selectedFile ? selectedFile.name : 'Choose a file...'}
+                </span>
+              </label>
+            </div>
           </div>
-
           <div className="form-group">
             <label>Share With (optional - leave empty to share with everyone)</label>
             <div className="member-selection">
-              {members && members.length > 0 && members
-                .filter(member => member._id !== user.id)
-                .map(member => (
-                  <label key={member._id} className="member-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={sharedWith.includes(member._id)}
-                      onChange={() => toggleMemberShare(member._id)}
-                    />
-                    <span>{member.name} ({member.role})</span>
-                  </label>
-                ))
-              }
+              {members && members.length > 0 ? (
+                members
+                  .filter(member => member._id !== user._id) 
+                  .map((member, index) => (
+                    <label key={member._id || `member-${index}`} className="member-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={sharedWith.includes(member._id)}
+                        onChange={() => toggleMemberShare(member._id)}
+                      />
+                      <span>{member.name} ({member.role})</span>
+                    </label>
+                  ))
+              ) : (
+                <p>No other members to share with.</p>
+              )}
             </div>
           </div>
-
           <button type="submit" disabled={uploading || !selectedFile} className="btn-primary">
             {uploading ? 'Uploading...' : 'Upload File'}
           </button>
         </form>
       </div>
-
       <div className="files-section">
         <h3>Shared Files</h3>
         {files.length === 0 ? (
@@ -176,15 +273,15 @@ const FileManager = ({ user, socket }) => {
           </div>
         ) : (
           <div className="files-grid">
-            {files.map(file => {
+            {files.map((file, index) => {
               const uploadedDate = new Date(file.uploaded_at);
+              const isUploader = (file.shared_by && file.shared_by._id === user._id);
+              
               return (
-                <div key={file._id} className="file-card">
-                  <div className="file-icon">
-                    📄
-                  </div>
+                <div key={file._id || `file-${index}`} className="file-card">
+                  <div className="file-icon">📄</div>
                   <div className="file-info">
-                    <h4>{file.file_name}</h4>
+                    <h4>{file.file_name || 'Untitled File'}</h4>
                     <div className="file-meta">
                       <p>Shared by: <strong>{file.shared_by?.name || 'Unknown'}</strong></p>
                       <p>Date: {isValidDate(uploadedDate) ? uploadedDate.toLocaleDateString() : 'N/A'}</p>
@@ -192,8 +289,8 @@ const FileManager = ({ user, socket }) => {
                         <div className="shared-with">
                           <p>Shared with:</p>
                           <div className="shared-list">
-                            {file.shared_with.map(member => (
-                              <span key={member._id} className="shared-tag">
+                            {file.shared_with.map((member, memberIndex) => (
+                              <span key={member._id || `shared-member-${memberIndex}`} className="shared-tag">
                                 {member?.name || 'Unknown'}
                               </span>
                             ))}
@@ -213,6 +310,14 @@ const FileManager = ({ user, socket }) => {
                     >
                       Download
                     </a>
+                    {isUploader && (
+                      <button
+                        onClick={() => handleDeleteFile(file._id)}
+                        className="btn-danger"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </div>
                 </div>
               );

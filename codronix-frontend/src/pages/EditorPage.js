@@ -1,3 +1,4 @@
+// src/components/EditorPage.js
 import React, { useState, useRef, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import ACTIONS from '../shared/Actions';
@@ -20,14 +21,25 @@ const EditorPage = () => {
     const [clients, setClients] = useState([]);
     const [isConnected, setIsConnected] = useState(false);
 
+    // 💡 Define the server URL using your network IP
+    const SERVER_URL = 'http://192.168.1.15:5000';
+
     useEffect(() => {
         const init = async () => {
             try {
-                socketRef.current = await initSocket();
+                // 💡 Pass the SERVER_URL to the initSocket function
+                socketRef.current = await initSocket(SERVER_URL);
                 
                 socketRef.current.on('connect', () => {
                     setIsConnected(true);
                     toast.success('Connected to server');
+
+                    if (location.state?.username) {
+                        socketRef.current.emit(ACTIONS.JOIN, {
+                            roomId,
+                            username: location.state.username,
+                        });
+                    }
                 });
 
                 socketRef.current.on('disconnect', () => {
@@ -35,19 +47,14 @@ const EditorPage = () => {
                     toast.error('Disconnected from server');
                 });
 
-                socketRef.current.on('connect_error', handleErrors);
-                socketRef.current.on('connect_failed', handleErrors);
-
                 function handleErrors(err) {
                     console.error('Socket error:', err);
                     toast.error('Socket connection failed. Try again.');
                     navigate('/editor-home');
                 }
 
-                socketRef.current.emit(ACTIONS.JOIN, {
-                    roomId,
-                    username: location.state?.username,
-                });
+                socketRef.current.on('connect_error', handleErrors);
+                socketRef.current.on('connect_failed', handleErrors);
 
                 socketRef.current.on(
                     ACTIONS.JOINED,
@@ -88,9 +95,11 @@ const EditorPage = () => {
                 socketRef.current.off(ACTIONS.DISCONNECTED);
                 socketRef.current.off(ACTIONS.CODE_CHANGE);
                 socketRef.current.off(ACTIONS.CURSOR_CHANGE);
+                socketRef.current.off('connect_error');
+                socketRef.current.off('connect_failed');
             }
         };
-    }, []);
+    }, [location.state?.username, navigate, roomId]);
 
     const copyRoomId = async () => {
         try {

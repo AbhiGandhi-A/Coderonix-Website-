@@ -15,7 +15,7 @@ const ChatComponent = ({ user, socket }) => {
   useEffect(() => {
     console.log('ChatComponent mounted, socket:', socket);
     console.log('User:', user);
-
+    
     if (socket && user) {
       // Check if socket is already connected
       if (socket.connected) {
@@ -69,7 +69,7 @@ const ChatComponent = ({ user, socket }) => {
       };
 
       const handleUserTyping = (data) => {
-        if (data.userId !== user.id) {
+        if (data.userId !== (user.id || user._id)) {
           setTypingUsers(prev => {
             if (data.isTyping) {
               return prev.includes(data.name) ? prev : [...prev, data.name];
@@ -119,13 +119,14 @@ const ChatComponent = ({ user, socket }) => {
         username: user.username || user.member_id,
         name: user.name
       });
-
+      
       socket.emit('join-group', {
         groupId: user.group_id,
-        userId: user.id || user._id, // Handle both id and _id
+        userId: user.id || user._id,
         username: user.username || user.member_id,
         name: user.name
       });
+      
       hasJoinedGroup.current = true;
     }
   };
@@ -177,17 +178,18 @@ const ChatComponent = ({ user, socket }) => {
     }
 
     console.log('📤 Sending message:', newMessage);
-    console.log('User data for message:', {
-      group_id: user.group_id,
-      sender_id: user.id || user._id,
-      message: newMessage.trim()
-    });
-
+    
     const messageData = {
       group_id: user.group_id,
-      sender_id: user.id || user._id, // Handle both id and _id
+      sender_id: user.id || user._id,
       message: newMessage.trim(),
-      receiver_id: null
+      receiver_id: null,
+      // Include sender info for immediate display
+      sender_info: {
+        _id: user.id || user._id,
+        name: user.name,
+        role: user.role
+      }
     };
 
     // Clear input immediately for better UX
@@ -253,6 +255,34 @@ const ChatComponent = ({ user, socket }) => {
     });
   };
 
+  // Helper function to get sender info
+  const getSenderInfo = (message) => {
+    // If sender_id is populated (from database)
+    if (message.sender_id && typeof message.sender_id === 'object' && message.sender_id.name) {
+      return {
+        id: message.sender_id._id,
+        name: message.sender_id.name,
+        role: message.sender_id.role
+      };
+    }
+    
+    // If sender_info is provided (from socket)
+    if (message.sender_info) {
+      return {
+        id: message.sender_info._id,
+        name: message.sender_info.name,
+        role: message.sender_info.role
+      };
+    }
+    
+    // Fallback
+    return {
+      id: message.sender_id,
+      name: 'Unknown User',
+      role: 'member'
+    };
+  };
+
   // Show loading state
   if (loading) {
     return (
@@ -291,27 +321,32 @@ const ChatComponent = ({ user, socket }) => {
             <p>No messages yet. Start the conversation!</p>
           </div>
         ) : (
-          messages.map(message => (
-            <div
-              key={message._id}
-              className={`message ${(message.sender_id._id === user.id || message.sender_id._id === user._id) ? 'own-message' : 'other-message'}`}
-            >
-              <div className="message-header">
-                <span className="sender-name">
-                  {message.sender_id.name}
-                  {message.sender_id.role === 'leader' && (
-                    <span className="leader-badge">Leader</span>
-                  )}
-                </span>
-                <span className="message-time">
-                  {formatTime(message.timestamp)}
-                </span>
+          messages.map(message => {
+            const senderInfo = getSenderInfo(message);
+            const isOwnMessage = senderInfo.id === (user.id || user._id);
+            
+            return (
+              <div
+                key={message._id}
+                className={`message ${isOwnMessage ? 'own-message' : 'other-message'}`}
+              >
+                <div className="message-header">
+                  <span className="sender-name">
+                    {senderInfo.name}
+                    {senderInfo.role === 'leader' && (
+                      <span className="leader-badge">Leader</span>
+                    )}
+                  </span>
+                  <span className="message-time">
+                    {formatTime(message.timestamp)}
+                  </span>
+                </div>
+                <div className="message-content">
+                  {message.message}
+                </div>
               </div>
-              <div className="message-content">
-                {message.message}
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
         
         {typingUsers.length > 0 && (
@@ -333,7 +368,7 @@ const ChatComponent = ({ user, socket }) => {
           disabled={!socketReady || !socket.connected}
         />
         <button 
-          type="submit" 
+          type="submit"
           className="send-btn"
           disabled={!socketReady || !socket.connected || !newMessage.trim()}
         >

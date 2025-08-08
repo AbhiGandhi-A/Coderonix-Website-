@@ -1,6 +1,7 @@
+// src/socket.js
 import { io } from 'socket.io-client';
 
-export const initSocket = async () => {
+export const initSocket = async (url) => {
     const options = {
         'force new connection': true,
         reconnectionAttempts: Infinity,
@@ -9,5 +10,6 @@ export const initSocket = async () => {
         upgrade: true,
         rememberUpgrade: true,
     };
-    return io('http://localhost:5000', options);
+    // 💡 This function now accepts the URL as a parameter.
+    return io(url, options);
 };

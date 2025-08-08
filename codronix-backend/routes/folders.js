@@ -1,77 +1,80 @@
-// routes/folders.js
 const express = require('express');
 const router = express.Router();
-const Folder = require('../models/Folder'); // Adjust path as necessary
-const auth = require('../middleware/auth'); // Assuming you have an auth middleware
-const mongoose = require('mongoose');
+const Folder = require('../models/Folder');
+const Doc = require('../models/Doc');
+const authMiddleware = require('../middleware/auth');
 
-// @route  POST api/folders
-// @desc   Create a new folder
-// @access Private
-router.post('/', auth, async (req, res) => {
-  try {
-    const { name, parent_folder, group_id } = req.body;
-    if (!name || !group_id) {
-      return res.status(400).json({ msg: 'Folder name and group_id are required' });
-    }
-
-    const newFolder = new Folder({
-      name,
-      group_id,
-      parent_folder: parent_folder || null,
-      created_by: req.user.id, // Assuming auth middleware adds user id to request
-    });
-
-    const folder = await newFolder.save();
-    res.status(201).json(folder);
-
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
-  }
+// Get all folders for a specific group
+router.get('/group/:groupId', authMiddleware, async (req, res) => {
+    try {
+        const { groupId } = req.params;
+        // Verify user belongs to the group
+        if (req.user.group_id.toString() !== groupId) {
+            return res.status(403).json({ message: 'Access denied: You do not belong to this group' });
+        }
+        const folders = await Folder.find({ group_id: groupId }).populate('docs');
+        res.json(folders);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
 });
 
-// @route  GET api/folders
-// @desc   Get top-level folders and files
-// @access Private
-router.get('/', auth, async (req, res) => {
-  try {
-    const { group_id } = req.query;
-    if (!group_id) {
-      return res.status(400).json({ msg: 'Group ID is required' });
-    }
-
-    const folders = await Folder.find({ group_id, parent_folder: null });
-    const files = await File.find({ group_id, folder_id: null }); // Assuming File model exists
-
-    res.json({ folders, files });
-
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
-  }
+// Create a new folder
+router.post('/', authMiddleware, async (req, res) => {
+    const { name, group_id } = req.body;
+    try {
+        const newFolder = new Folder({
+            name,
+            group_id: group_id,
+            created_by: req.user.id,
+        });
+        await newFolder.save();
+        res.status(201).json(newFolder);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
 });
 
-// @route  GET api/folders/:id
-// @desc   Get content of a specific folder
-// @access Private
-router.get('/:id', auth, async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ msg: 'Invalid folder ID' });
-    }
+// Get a single folder and its contents
+router.get('/:id/contents', authMiddleware, async (req, res) => {
+    try {
+        const folder = await Folder.findById(req.params.id).populate('docs');
+        if (!folder) {
+            return res.status(404).json({ message: 'Folder not found' });
+        }
+        // Check if the user is a member of the folder's group
+        if (folder.group_id.toString() !== req.user.group_id.toString()) {
+             return res.status(403).json({ message: 'Access denied: You are not in the same group' });
+        }
+        res.json(folder);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+});
 
-    const folders = await Folder.find({ parent_folder: id });
-    const files = await File.find({ folder_id: id });
+// Delete a folder and all its contents
+router.delete('/:id', authMiddleware, async (req, res) => {
+    try {
+        const folder = await Folder.findById(req.params.id);
+        if (!folder) {
+            return res.status(404).json({ message: 'Folder not found' });
+        }
+        // Check ownership before deleting
+        if (folder.created_by.toString() !== req.user.id) {
+            return res.status(403).json({ message: 'Access denied: You do not own this folder' });
+        }
+        
+        await Doc.deleteMany({ folder_id: folder._id });
+        await Folder.findByIdAndDelete(req.params.id);
 
-    res.json({ folders, files });
-
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
-  }
+        res.json({ message: 'Folder and its contents removed' });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
 });
 
 module.exports = router;
