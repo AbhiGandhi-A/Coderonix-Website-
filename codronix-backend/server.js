@@ -37,7 +37,7 @@ const PORT = process.env.PORT || 5000;
 const clientOrigins = [
     "http://localhost:3000", 
     "http://127.0.0.1:3000",
-    `http://${SERVER_IP}:3000`
+    `http://${SERVER_IP}:3000`,
     "https://coderonix-website-nc7p-6nbfbxjg1.vercel.app"
 ];
 
