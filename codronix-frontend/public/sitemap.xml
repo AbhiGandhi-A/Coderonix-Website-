@@ -2,14 +2,6 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://coderonix-website-nc7p.vercel.app/</loc>
-    <priority>1.0</priority>
-  </url>
-  <url>
-    <loc>https://coderonix-website-nc7p.vercel.app/about</loc>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://coderonix-website-nc7p.vercel.app/contact</loc>
-    <priority>0.8</priority>
+    <priority>1.00</priority>
   </url>
 </urlset>
